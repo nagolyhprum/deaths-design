@@ -12,20 +12,38 @@ extends Node2D
 # so adjacent rooms are stitched at their shared wall. FurniturePass runs per room
 # using the room's assigned type. A flood-fill connectivity check validates the
 # result.
+#
+# Phase 3 (num_floors>1 or has_basement): generates multiple stacked floors.
+# Each floor is an independent TileMapLayer created dynamically. StairPlacer picks
+# one stair position per adjacent floor pair; those positions become fixed WFC
+# constraints (STAIR_UP on the lower floor, STAIR_DOWN on the upper floor at the
+# same XY). switch_floor() toggles layer visibility. Generated tile data is cached
+# by seed via BuildingCache so deaths don't retrigger generation.
 
 @export var building_seed: int = 0
-@export var room_size: Vector2i = Vector2i(8, 8)
-@export var room_cols: int = 1
-@export var room_rows: int = 1
+@export var room_size:     Vector2i = Vector2i(8, 8)
+@export var room_cols:     int = 1
+@export var room_rows:     int = 1
+@export var num_floors:    int = 1    # above-ground floors (>= 1)
+@export var has_basement:  bool = false
 
-@export_tool_button("Generate")       var _generate_btn       := generate
-@export_tool_button("Randomize Seed") var _randomize_btn      := randomize_building_seed
+@export_tool_button("Generate")       var _generate_btn  := generate
+@export_tool_button("Randomize Seed") var _randomize_btn := randomize_building_seed
+
+# Emitted whenever the active floor changes (floor switch or initial generate).
+signal floor_changed(new_floor: int)
+
+var _active_floor: int = 0
+
+# Populated during multi-floor generation; empty in single-floor mode.
+var _floor_layers: Dictionary = {}   # floor_index (int) -> TileMapLayer
+var _props_layers: Dictionary = {}   # floor_index (int) -> TileMapLayer
+var _stair_pairs:  Array      = []   # Array[StairPlacer.StairData]
 
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	# Skip self-generation when WorldGen parent will orchestrate us.
 	if get_parent() is WorldGen:
 		return
 	generate()
@@ -37,23 +55,26 @@ func randomize_building_seed() -> void:
 
 
 func generate() -> void:
-	var floor_layer := _get_floor_layer()
-	if floor_layer == null:
-		push_warning("BuildingGen: expected a TileMapLayer child (floor)")
-		return
-
-	var props_layer := _get_props_layer()
-
-	floor_layer.clear()
-	if props_layer != null:
-		props_layer.clear()
-
 	var streams := RngStreams.new(building_seed)
 
-	if room_cols > 1 or room_rows > 1:
-		_generate_multi_room(floor_layer, props_layer, streams)
+	if num_floors > 1 or has_basement:
+		_generate_multifloor(streams)
 	else:
-		_generate_single_room(floor_layer, props_layer, streams)
+		# Phase 1 / 2 single-floor path (backward-compatible).
+		var floor_layer := _get_floor_layer()
+		if floor_layer == null:
+			push_warning("BuildingGen: expected a TileMapLayer child (floor)")
+			return
+
+		var props_layer := _get_props_layer()
+		floor_layer.clear()
+		if props_layer != null:
+			props_layer.clear()
+
+		if room_cols > 1 or room_rows > 1:
+			_generate_multi_room(floor_layer, props_layer, streams)
+		else:
+			_generate_single_room(floor_layer, props_layer, streams)
 
 
 # ── Single-room (Phase 1) ─────────────────────────────────────────────────────
@@ -61,7 +82,7 @@ func generate() -> void:
 func _generate_single_room(
 	floor_layer: TileMapLayer,
 	props_layer: TileMapLayer,
-	streams: RngStreams
+	streams:     RngStreams
 ) -> void:
 	WfcRoomGenerator.generate(
 		streams.derive_seed("wfc"),
@@ -86,7 +107,7 @@ func _generate_single_room(
 func _generate_multi_room(
 	floor_layer: TileMapLayer,
 	props_layer: TileMapLayer,
-	streams: RngStreams
+	streams:     RngStreams
 ) -> void:
 	var layout := RoomGraph.generate(
 		streams.derive_seed("layout"),
@@ -95,8 +116,8 @@ func _generate_multi_room(
 		room_rows
 	)
 
-	var wfc_base    := streams.derive_seed("wfc")
-	var furn_base   := streams.derive_seed("furniture")
+	var wfc_base  := streams.derive_seed("wfc")
+	var furn_base := streams.derive_seed("furniture")
 
 	for i in layout.rooms.size():
 		var room: RoomGraph.RoomData = layout.rooms[i]
@@ -124,8 +145,360 @@ func _generate_multi_room(
 		push_warning("BuildingGen: connectivity check failed for seed %d" % building_seed)
 
 
+# ── Multi-floor (Phase 3) ─────────────────────────────────────────────────────
+
+func _generate_multifloor(streams: RngStreams) -> void:
+	var floor_indices := _get_floor_indices()
+
+	# Restore from cache if available — avoids regeneration on death.
+	if BuildingCache.has_building(cache_key()):
+		_restore_from_cache(floor_indices)
+		return
+
+	# Determine stair positions before WFC so they can be passed as constraints.
+	_stair_pairs = StairPlacer.place(
+		streams.derive_seed("stairs"),
+		room_size,
+		room_cols,
+		room_rows,
+		floor_indices
+	)
+
+	var wfc_base  := streams.derive_seed("wfc")
+	var furn_base := streams.derive_seed("furniture")
+
+	for f in floor_indices:
+		_ensure_dynamic_layers(f)
+
+	for f in floor_indices:
+		var fl: TileMapLayer = _floor_layers[f]
+		var pl: TileMapLayer = _props_layers[f]
+		fl.clear()
+		pl.clear()
+
+		var stair_fixed := _stair_constraints_for_floor(f)
+
+		if room_cols > 1 or room_rows > 1:
+			_generate_floor_multi_room(fl, pl, wfc_base, furn_base, f, stair_fixed)
+		else:
+			_generate_floor_single_room(fl, pl, wfc_base, furn_base, f, stair_fixed)
+
+	if not _validate_multifloor_reachability(floor_indices):
+		push_warning("BuildingGen: multi-floor reachability failed for seed %d" % building_seed)
+
+	_store_to_cache(floor_indices)
+	switch_floor(0)
+
+
+func _generate_floor_single_room(
+	fl:          TileMapLayer,
+	pl:          TileMapLayer,
+	wfc_base:    int,
+	furn_base:   int,
+	floor_index: int,
+	stair_fixed: Dictionary
+) -> void:
+	WfcRoomGenerator.generate(
+		hash([wfc_base, floor_index]),
+		fl,
+		Vector2i.ZERO,
+		room_size,
+		stair_fixed
+	)
+	FurniturePass.generate(
+		hash([furn_base, floor_index]),
+		fl, pl,
+		Vector2i.ZERO,
+		room_size,
+		_room_type_for_floor(floor_index)
+	)
+
+
+func _generate_floor_multi_room(
+	fl:          TileMapLayer,
+	pl:          TileMapLayer,
+	wfc_base:    int,
+	furn_base:   int,
+	floor_index: int,
+	stair_fixed: Dictionary
+) -> void:
+	var layout := RoomGraph.generate(
+		hash([wfc_base, "layout", floor_index]),
+		room_size,
+		room_cols,
+		room_rows
+	)
+
+	for i in layout.rooms.size():
+		var room: RoomGraph.RoomData = layout.rooms[i]
+		var constraints := layout.door_constraints_for(i)
+
+		# Merge stair constraints that fall inside this room.
+		for k: Vector2i in stair_fixed:
+			if room.rect().has_point(k):
+				constraints[k] = stair_fixed[k]
+
+		WfcRoomGenerator.generate(
+			hash([wfc_base, floor_index, i]),
+			fl,
+			room.origin,
+			room.size,
+			constraints
+		)
+
+		FurniturePass.generate(
+			hash([furn_base, floor_index, i]),
+			fl, pl,
+			room.origin,
+			room.size,
+			room.type
+		)
+
+	if not _validate_connectivity(fl, layout):
+		push_warning("BuildingGen: floor %d connectivity failed for seed %d" % [floor_index, building_seed])
+
+
+func _stair_constraints_for_floor(floor_index: int) -> Dictionary:
+	var fixed: Dictionary = {}
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		if sd.floor_from == floor_index:
+			fixed[sd.tile_pos] = {
+				"source_id": WfcRoomGenerator.STAIR_UP_SOURCE_ID,
+				"atlas":     Vector2i(0, 0),
+			}
+		elif sd.floor_to == floor_index:
+			fixed[sd.tile_pos] = {
+				"source_id": WfcRoomGenerator.STAIR_DOWN_SOURCE_ID,
+				"atlas":     Vector2i(0, 0),
+			}
+	return fixed
+
+
+func _room_type_for_floor(floor_index: int) -> int:
+	# Basements use GENERIC; future work may add STORAGE or UTILITY biases.
+	return TileMeta.RoomType.GENERIC
+
+
+func _get_floor_indices() -> Array[int]:
+	var indices: Array[int] = []
+	if has_basement:
+		indices.append(-1)
+	for f in num_floors:
+		indices.append(f)
+	return indices
+
+
+# ── Floor switching ───────────────────────────────────────────────────────────
+
+func switch_floor(floor_index: int) -> void:
+	for f in _floor_layers:
+		(_floor_layers[f] as TileMapLayer).visible = false
+	for f in _props_layers:
+		(_props_layers[f] as TileMapLayer).visible = false
+
+	if not _floor_layers.has(floor_index):
+		push_warning("BuildingGen: floor %d has no layer" % floor_index)
+		return
+
+	(_floor_layers[floor_index] as TileMapLayer).visible = true
+	(_props_layers[floor_index] as TileMapLayer).visible = true
+
+	_active_floor = floor_index
+	floor_changed.emit(floor_index)
+
+
+func get_active_floor() -> int:
+	return _active_floor
+
+
+# Returns Vector2i positions of STAIR_UP tiles on `floor_index`.
+func get_stair_up_positions(floor_index: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		if sd.floor_from == floor_index:
+			result.append(sd.tile_pos)
+	return result
+
+
+# Returns Vector2i positions of STAIR_DOWN tiles on `floor_index`.
+func get_stair_down_positions(floor_index: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		if sd.floor_to == floor_index:
+			result.append(sd.tile_pos)
+	return result
+
+
+# Returns the floor index reached by ascending from `floor_index` (or floor_index if no stair up).
+func get_floor_above(floor_index: int) -> int:
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		if sd.floor_from == floor_index:
+			return sd.floor_to
+	return floor_index
+
+
+# Returns the floor index reached by descending from `floor_index` (or floor_index if no stair down).
+func get_floor_below(floor_index: int) -> int:
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		if sd.floor_to == floor_index:
+			return sd.floor_from
+	return floor_index
+
+
+# ── Multi-floor reachability ──────────────────────────────────────────────────
+
+func _validate_multifloor_reachability(floor_indices: Array[int]) -> bool:
+	for f in floor_indices:
+		if not _floor_layers.has(f):
+			continue
+		var fl: TileMapLayer = _floor_layers[f]
+
+		# Collect all stair positions on this floor (up + down).
+		var stair_positions: Array[Vector2i] = []
+		stair_positions.append_array(get_stair_up_positions(f))
+		stair_positions.append_array(get_stair_down_positions(f))
+
+		if stair_positions.is_empty():
+			continue
+
+		var spawn := _find_floor_spawn(fl)
+		if spawn == Vector2i(-1, -1):
+			continue
+
+		for stair_pos in stair_positions:
+			if not _can_reach(fl, spawn, stair_pos):
+				return false
+
+	return true
+
+
+func _find_floor_spawn(layer: TileMapLayer) -> Vector2i:
+	# Walk the interior of the first room to find any non-wall cell.
+	for y in range(1, room_size.y - 1):
+		for x in range(1, room_size.x - 1):
+			var cell := Vector2i(x, y)
+			var src := layer.get_cell_source_id(cell)
+			if src != -1 and src != WfcRoomGenerator.WALL_SOURCE_ID:
+				return cell
+	return Vector2i(-1, -1)
+
+
+func _can_reach(layer: TileMapLayer, start: Vector2i, target: Vector2i) -> bool:
+	var visited: Dictionary = {}
+	var queue: Array[Vector2i] = [start]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		if visited.has(cell):
+			continue
+		var src := layer.get_cell_source_id(cell)
+		if src == -1 or src == WfcRoomGenerator.WALL_SOURCE_ID:
+			continue
+		visited[cell] = true
+		if cell == target:
+			return true
+		queue.append(cell + Vector2i(1,  0))
+		queue.append(cell + Vector2i(-1, 0))
+		queue.append(cell + Vector2i(0,  1))
+		queue.append(cell + Vector2i(0, -1))
+	return false
+
+
+# ── Building cache ────────────────────────────────────────────────────────────
+
+func cache_key() -> int:
+	# Include floor count + basement flag so different configs don't share entries.
+	return hash([building_seed, num_floors, int(has_basement)])
+
+
+func _store_to_cache(floor_indices: Array[int]) -> void:
+	var snapshots: Dictionary = {}
+	for f in floor_indices:
+		snapshots[f] = {
+			"floor": BuildingCache.snapshot_layer(_floor_layers[f]),
+			"props": BuildingCache.snapshot_layer(_props_layers[f]),
+		}
+	snapshots["_stair_pairs"] = _serialize_stair_pairs()
+	BuildingCache.store(cache_key(), snapshots)
+
+
+func _restore_from_cache(floor_indices: Array[int]) -> void:
+	var cached := BuildingCache.load_building(cache_key())
+
+	if cached.has("_stair_pairs"):
+		_stair_pairs = _deserialize_stair_pairs(cached["_stair_pairs"])
+
+	for f in floor_indices:
+		_ensure_dynamic_layers(f)
+		if not cached.has(f):
+			continue
+		var entry: Dictionary = cached[f]
+		BuildingCache.restore_layer(_floor_layers[f], entry.get("floor", []))
+		BuildingCache.restore_layer(_props_layers[f], entry.get("props", []))
+
+	switch_floor(0)
+
+
+func _serialize_stair_pairs() -> Array:
+	var result: Array = []
+	for pair in _stair_pairs:
+		var sd: StairPlacer.StairData = pair
+		result.append({
+			"from": sd.floor_from,
+			"to":   sd.floor_to,
+			"pos":  { "x": sd.tile_pos.x, "y": sd.tile_pos.y },
+		})
+	return result
+
+
+func _deserialize_stair_pairs(data: Array) -> Array:
+	var result: Array = []
+	for entry in data:
+		var sd := StairPlacer.StairData.new()
+		sd.floor_from = entry["from"]
+		sd.floor_to   = entry["to"]
+		sd.tile_pos   = Vector2i(entry["pos"]["x"], entry["pos"]["y"])
+		result.append(sd)
+	return result
+
+
+# ── Dynamic layer management ─────────────────────────────────────────────────
+
+func _ensure_dynamic_layers(floor_index: int) -> void:
+	var fl_name := "DynFloor_%d" % floor_index
+	var pr_name := "DynProps_%d" % floor_index
+
+	if not _floor_layers.has(floor_index):
+		var fl := _find_or_create_layer(fl_name)
+		_floor_layers[floor_index] = fl
+
+	if not _props_layers.has(floor_index):
+		var pl := _find_or_create_layer(pr_name)
+		_props_layers[floor_index] = pl
+
+
+func _find_or_create_layer(layer_name: String) -> TileMapLayer:
+	for child in get_children():
+		if child.name == layer_name and child is TileMapLayer:
+			return child as TileMapLayer
+	var layer := TileMapLayer.new()
+	layer.name = layer_name
+	# Inherit tileset from the existing scene-authored floor layer so rendering
+	# works when the game runs. No-op in headless unit tests (tile_set stays null).
+	var ref := _get_floor_layer()
+	if ref != null:
+		layer.tile_set = ref.tile_set
+	add_child(layer)
+	return layer
+
+
+# ── Connectivity validation (single-floor) ───────────────────────────────────
+
 func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> bool:
-	# Flood-fill from the first room's interior; all walkable cells should be reachable.
 	if layout.rooms.is_empty():
 		return true
 
@@ -139,7 +512,6 @@ func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> boo
 	var queue: Array[Vector2i] = [spawn]
 	var walkable_total := 0
 
-	# Count all walkable cells
 	for room in layout.rooms:
 		var r: RoomGraph.RoomData = room
 		for y in r.size.y:
@@ -149,7 +521,6 @@ func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> boo
 				if src != -1 and src != WfcRoomGenerator.WALL_SOURCE_ID:
 					walkable_total += 1
 
-	# Flood-fill
 	while not queue.is_empty():
 		var cell: Vector2i = queue.pop_front()
 		if cell in visited:
@@ -174,7 +545,6 @@ func _get_floor_layer() -> TileMapLayer:
 	for child in get_children():
 		if child is TileMapLayer and child.name == "TileMapLayer":
 			return child
-	# Fallback: first TileMapLayer child
 	for child in get_children():
 		if child is TileMapLayer:
 			return child

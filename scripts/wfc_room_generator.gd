@@ -17,10 +17,15 @@ extends RefCounted
 
 const MAX_RETRIES := 5
 
-const WALL_SOURCE_ID   := 4
-const FLOOR_SOURCE_ID  := 9
-const DOOR_CLOSED_ID   := 22
-const DOOR_OPEN_ID     := 23
+const WALL_SOURCE_ID        := 4
+const FLOOR_SOURCE_ID       := 9
+const DOOR_CLOSED_ID        := 22
+const DOOR_OPEN_ID          := 23
+# ⚠️ MANUAL EDITOR STEP REQUIRED — create stair tiles in the TileSet with these
+# source IDs before gameplay. Placeholder values; update if your TileSet uses
+# different IDs. See planning/world_gen.md Phase 3 notes.
+const STAIR_UP_SOURCE_ID    := 30
+const STAIR_DOWN_SOURCE_ID  := 31
 
 const FLOOR_VARIANT_COUNT := 4
 const WALL_ROW := 0
@@ -75,6 +80,12 @@ static func _ensure_catalog() -> void:
 	_add(TileDef.new(DOOR_CLOSED_ID, Vector2i(TileMeta.Direction.WEST,  0), W, W, D, F))
 	_add(TileDef.new(DOOR_CLOSED_ID, Vector2i(TileMeta.Direction.EAST,  0), W, W, F, D))
 	_add(TileDef.new(DOOR_CLOSED_ID, Vector2i(TileMeta.Direction.SOUTH, 0), F, D, W, W))
+
+	# Stair tiles — walkable on all sides (placed only as fixed constraints, never
+	# spontaneously by WFC). Must be in catalog so _run() can resolve the TileDef
+	# when a fixed constraint references these source IDs.
+	_add(TileDef.new(STAIR_UP_SOURCE_ID,   Vector2i(0, 0), F, F, F, F))
+	_add(TileDef.new(STAIR_DOWN_SOURCE_ID, Vector2i(0, 0), F, F, F, F))
 
 
 static func _add(t: TileDef) -> void:
