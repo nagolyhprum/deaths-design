@@ -169,3 +169,101 @@ func test_seed_second_save_overwrites_first() -> void:
 	wg._load_seed()
 	assert_eq(wg.world_seed, 999, "second save should overwrite the first")
 	wg.free()
+
+
+# ── WorldGen.generate() integration ──────────────────────────────────────────
+#
+# Regression guard for the "script = null" scene corruption that cleared
+# building_gen.gd from the BuildingGen instance in world_gen.tscn, making
+# `child is BuildingGen` return false and silently skipping generation.
+
+func _make_building(cols: int = 1, rows: int = 1) -> BuildingGen:
+	var b := BuildingGen.new()
+	var fl := TileMapLayer.new()
+	fl.name = "TileMapLayer"
+	var pl := TileMapLayer.new()
+	pl.name = "PropsLayer"
+	b.add_child(fl)
+	b.add_child(pl)
+	b.room_cols = cols
+	b.room_rows = rows
+	b.room_size = Vector2i(8, 8)
+	return b
+
+
+func test_worldgen_generate_fills_building_tiles() -> void:
+	var wg := WorldGen.new()
+	var b := _make_building()
+	wg.add_child(b)
+
+	wg.generate()
+
+	var floor_l: TileMapLayer = b.get_node("TileMapLayer")
+	assert_gt(floor_l.get_used_cells().size(), 0,
+		"WorldGen.generate() should produce tiles on the BuildingGen's TileMapLayer")
+	wg.free()
+
+
+func test_worldgen_generate_assigns_building_seed() -> void:
+	var wg := WorldGen.new()
+	wg.world_seed = 99
+	var b := _make_building()
+	wg.add_child(b)
+
+	wg.generate()
+
+	assert_ne(b.building_seed, 0,
+		"WorldGen.generate() should assign a non-zero derived seed to each BuildingGen")
+	wg.free()
+
+
+func test_worldgen_generate_single_building_is_not_goal() -> void:
+	var wg := WorldGen.new()
+	var b := _make_building()
+	wg.add_child(b)
+
+	wg.generate()
+
+	assert_false(b.is_goal,
+		"a single-building world has no separate goal — is_goal should be false")
+	wg.free()
+
+
+func test_worldgen_generate_last_of_two_is_goal() -> void:
+	var wg := WorldGen.new()
+	var b1 := _make_building()
+	var b2 := _make_building()
+	wg.add_child(b1)
+	wg.add_child(b2)
+
+	wg.generate()
+
+	assert_false(b1.is_goal, "first building should not be the goal")
+	assert_true(b2.is_goal,  "last building should be marked as the goal (STORE)")
+	wg.free()
+
+
+func test_worldgen_generate_is_deterministic() -> void:
+	var wg1 := WorldGen.new()
+	var b1 := _make_building()
+	wg1.add_child(b1)
+	wg1.world_seed = 77
+	wg1.generate()
+	var fl1: TileMapLayer = b1.get_node("TileMapLayer")
+	var cells1 := fl1.get_used_cells().duplicate()
+
+	var wg2 := WorldGen.new()
+	var b2 := _make_building()
+	wg2.add_child(b2)
+	wg2.world_seed = 77
+	wg2.generate()
+	var fl2: TileMapLayer = b2.get_node("TileMapLayer")
+
+	assert_eq(cells1.size(), fl2.get_used_cells().size(),
+		"same world_seed should produce the same cell count")
+	for cell in cells1:
+		assert_eq(fl1.get_cell_source_id(cell), fl2.get_cell_source_id(cell),
+			"source_id should match at %s" % str(cell))
+
+	wg1.free()
+	wg2.free()
