@@ -1,0 +1,1 @@
+I want you to create a tilesheet for different room structures to be added to a scene. Things like walls, windows, doors, rugs, tables, pictures on the wall, potted plants, and counters just to get started. Keep in mind that they must be 2.5d isometric and fit into the grid tiles you have created already.
