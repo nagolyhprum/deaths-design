@@ -1,0 +1,1 @@
+The character movement speed seems to be off. When I press up and left for example I expect the character to stay in the same grid diagonal but it seems the up speed is too high which causes him to leave the row and eventually work his way to the next row. Can you make the movement speed more consistent?

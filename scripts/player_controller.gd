@@ -1,6 +1,7 @@
 extends CharacterBody2D
 
 const WALK_FRAMES := [0, 1, 2, 1]
+const ISOMETRIC_VERTICAL_WEIGHT := 0.5
 
 @export var move_speed := 220.0
 @export var animation_fps := 8.0
@@ -18,7 +19,7 @@ func _physics_process(delta: float) -> void:
 	var is_moving := raw_input != Vector2.ZERO
 
 	if is_moving:
-		velocity = raw_input.normalized() * move_speed * _scene_scale
+		velocity = _movement_vector_from_input(raw_input) * move_speed * _scene_scale
 		_facing_row = _facing_row_from_input(raw_input)
 		_animation_time += delta * animation_fps
 	else:
@@ -34,6 +35,11 @@ func _read_input_vector() -> Vector2:
 	var x := int(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - int(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
 	var y := int(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)) - int(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP))
 	return Vector2(x, y)
+
+
+func _movement_vector_from_input(input_vector: Vector2) -> Vector2:
+	var weighted_input := Vector2(input_vector.x, input_vector.y * ISOMETRIC_VERTICAL_WEIGHT)
+	return weighted_input.normalized()
 
 
 func _facing_row_from_input(input_vector: Vector2) -> int:
