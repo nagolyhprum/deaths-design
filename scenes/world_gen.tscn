@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://50pyd26mk7p3"]
 
 [ext_resource type="PackedScene" uid="uid://dqsmwkr1bp30s" path="res://scenes/building_gen.tscn" id="1_syqki"]
-[ext_resource type="TileSet" uid="uid://cdi3qmn1xjend" path="res://assets/tiles/outdoor_tiles.tres" id="2_v8aan"]
+[ext_resource type="TileSet" uid="uid://b5pasaea7w228" path="res://assets/tiles/outdoor_tiles.tres" id="2_v8aan"]
 
 [node name="Node2D" type="Node2D" unique_id=155974679]
 
