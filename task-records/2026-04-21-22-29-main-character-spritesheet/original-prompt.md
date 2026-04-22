@@ -1,0 +1,1 @@
+I would like you to generate a sprite sheet for the main character. It needs to be isometric 2.5d. It needs to be able to face at least 4 directions and have at least 3 animation frames each. The character should be male in their early 20s
