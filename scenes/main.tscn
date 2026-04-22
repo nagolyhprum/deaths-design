@@ -17,4 +17,4 @@ offset_right = 493.0
 offset_bottom = 76.0
 theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
-text = "Move with WASD or Arrow Keys\\nThe controls map to the isometric floor so the four sprite facings stay readable."
+text = "Move with WASD or Arrow Keys\\nUp, down, left, and right now follow the screen while the sprite keeps the nearest diagonal facing."

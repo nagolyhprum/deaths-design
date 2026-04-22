@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	var is_moving := raw_input != Vector2.ZERO
 
 	if is_moving:
-		velocity = _to_isometric_motion(raw_input) * move_speed
+		velocity = raw_input.normalized() * move_speed
 		_facing_row = _facing_row_from_input(raw_input)
 		_animation_time += delta * animation_fps
 	else:
@@ -35,22 +35,22 @@ func _read_input_vector() -> Vector2:
 	return Vector2(x, y)
 
 
-func _to_isometric_motion(input_vector: Vector2) -> Vector2:
-	var mapped := Vector2(
-		input_vector.x + input_vector.y,
-		(input_vector.y - input_vector.x) * 0.5
-	)
-	return mapped.normalized()
-
-
 func _facing_row_from_input(input_vector: Vector2) -> int:
-	if input_vector.y > 0.0 and input_vector.x >= 0.0:
+	if input_vector.y > 0.0:
+		if input_vector.x < 0.0:
+			return 1
 		return 0
-	if input_vector.x < 0.0 and input_vector.y >= 0.0:
+	if input_vector.y < 0.0:
+		if input_vector.x <= 0.0:
+			return 2
+		return 3
+	if input_vector.x < 0.0:
+		if _facing_row in [2, 3]:
+			return 2
 		return 1
-	if input_vector.y < 0.0 and input_vector.x <= 0.0:
-		return 2
-	return 3
+	if _facing_row in [2, 3]:
+		return 3
+	return 0
 
 
 func _clamp_to_viewport() -> void:
@@ -63,4 +63,3 @@ func _update_sprite(is_moving: bool) -> void:
 	if is_moving:
 		frame = WALK_FRAMES[int(_animation_time) % WALK_FRAMES.size()]
 	sprite.frame_coords = Vector2i(frame, _facing_row)
-
