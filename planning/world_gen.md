@@ -44,17 +44,25 @@ Multi-pass procedural generation of multi-floor buildings:
 
 ### Phase 1 — MVP: seeded single room ✅ *complete as of 2026-04-22*
 
+> ⚠️ **MANUAL EDITOR STEP REQUIRED — do these in the Godot editor before running generation:**
+>
+> 1. **⚠️ MANUAL EDITOR STEP REQUIRED — Add TileSet custom data layers** (`category`, `socket`, `weight`, `anchor`) in the Godot editor. Open `assets/tiles/building_tiles.tres` in the TileSet editor and add four custom data layers of type `int`/`float` before running generation. These values are what WFC reads at runtime to determine adjacency rules.
+>
+> 2. **⚠️ MANUAL EDITOR STEP REQUIRED — Add collision shapes per tile** in the TileSet editor. Each wall tile and door tile needs a polygon collision shape assigned in the Physics > Collision Shapes panel. Without this, the player will walk through walls at runtime.
+>
+> Both items are editor-only and cannot be scripted. All code infrastructure is in place; the generator will run correctly once the TileSet data is authored.
+
 - [x] Delete `ROOM_LAYOUT` constant and its iteration in `test_level.gd`
 - [x] Replace `test_level.gd` / `test_level.tscn` with `building_gen.gd` / `building_gen.tscn` (and `world_gen` as its parent)
 - [x] Add `TileMeta` autoload (`scripts/tile_meta.gd`) with `Category`, `Socket`, `Direction`, `Anchor`, and `RoomType` enums
-- [ ] Configure the interior TileSet: isometric mode, collision shapes per tile, custom data layers (`category`, `socket_n/e/s/w`, `weight`) — **needs editor authoring**
-- [ ] Hand-author category + socket + weight values for every tile in the existing sheet — **needs editor authoring**
+- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Configure the interior TileSet: isometric mode, collision shapes per tile, custom data layers (`category`, `socket_n/e/s/w`, `weight`) — **must be done in the Godot editor; see note above**
+- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Hand-author category + socket + weight values for every tile in the existing sheet — **must be done in the Godot editor; see note above**
 - [x] `scripts/rng_streams.gd`: helper for splitting a seed into named sub-streams
 - [x] `scripts/wfc_room_generator.gd`: pure `generate(seed, tile_map_layer, origin, size, fixed_constraints)` → populates the layer; bounded retry + fallback tile on contradiction; fixed-constraint API for door stitching (Phase 2)
 - [x] `building_gen.gd`: `@tool`, exported `building_seed: int`, `room_cols`, `room_rows`, `@export_tool_button("Generate")`, `@export_tool_button("Randomize Seed")`; calls WFC then FurniturePass
 - [x] `world_gen.gd`: `@tool`, exported `world_seed: int`, generate/randomize buttons; forwards derived seed to BuildingGen children
 - [x] Add a second `TileMapLayer` (`PropsLayer`) for props on `building_gen`
-- [ ] Add prop-related custom data layers to the interior TileSet (`anchor`, `room_types`, `weight`, `clearance`) and author values for existing prop tiles — **needs editor authoring + prop tile assets**
+- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Add prop-related custom data layers to the interior TileSet (`anchor`, `room_types`, `weight`, `clearance`) and author values for existing prop tiles — **needs editor authoring + prop tile assets**
 - [x] `scripts/furniture_pass.gd`: pure function reads WFC result + prop palette, places props on the props layer using a dedicated `furniture` RNG sub-stream, runs flood-fill walkability validation with bounded retry
 - [ ] Minimal Phase 1 prop palette: 1–2 props from the existing sheet — **deferred: no prop tile assets in TileSet yet**
 - [x] Runtime entry point calls the same `generate()` used by the tool button (WFC → furniture)

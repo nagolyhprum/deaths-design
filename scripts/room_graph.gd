@@ -159,8 +159,8 @@ func footprint() -> Rect2i:
 
 static func _pick_door_pos(rng: RandomNumberGenerator, origin_axis: int, length: int) -> int:
 	# Place door in the middle third to avoid corners
-	var lo := origin_axis + max(1, length / 3)
-	var hi := origin_axis + min(length - 2, (length * 2) / 3)
+	var lo: int = origin_axis + max(1, length / 3)
+	var hi: int = origin_axis + min(length - 2, (length * 2) / 3)
 	if lo >= hi:
 		lo = origin_axis + 1
 		hi = origin_axis + length - 2

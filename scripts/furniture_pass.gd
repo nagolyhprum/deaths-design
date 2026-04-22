@@ -214,7 +214,7 @@ static func _candidates_for_anchor(
 			return valid
 		TileMeta.Anchor.DOOR_ADJACENT:
 			var c: Array[Vector2i] = []
-			var offsets := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
+			var offsets: Array[Vector2i] = [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
 			for door in doors:
 				for off in offsets:
 					var adj := door + off
@@ -307,6 +307,6 @@ static func _first_interior(origin: Vector2i, size: Vector2i) -> Vector2i:
 static func _shuffle(rng: RandomNumberGenerator, arr: Array) -> void:
 	for i in range(arr.size() - 1, 0, -1):
 		var j := rng.randi() % (i + 1)
-		var tmp := arr[i]
+		var tmp: Variant = arr[i]
 		arr[i] = arr[j]
 		arr[j] = tmp
