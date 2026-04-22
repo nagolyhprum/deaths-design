@@ -31,6 +31,11 @@ extends Node2D
 @export var room_rows:     int = 1
 @export var num_floors:    int = 1    # above-ground floors (>= 1)
 @export var has_basement:  bool = false
+# Archetype drives room-type distribution (via BuildingArchetype.room_weights_for).
+# Set by WorldGen when placing buildings; can also be hand-set in the Inspector.
+@export var archetype:     int = BuildingArchetype.ArchetypeID.HOUSE
+# When true this building is the player's goal (the Store the player must reach).
+@export var is_goal:       bool = false
 
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_building_seed
@@ -137,11 +142,13 @@ func _generate_multi_room(
 	streams:       RngStreams,
 	floor_index:   int = 0
 ) -> void:
+	var weights := BuildingArchetype.room_weights_for(archetype)
 	var layout := RoomGraph.generate(
 		streams.derive_seed("layout"),
 		room_size,
 		room_cols,
-		room_rows
+		room_rows,
+		weights
 	)
 
 	var wfc_base    := streams.derive_seed("wfc")
@@ -283,11 +290,13 @@ func _generate_floor_multi_room(
 	floor_index: int,
 	stair_fixed: Dictionary
 ) -> void:
+	var weights := BuildingArchetype.room_weights_for(archetype)
 	var layout := RoomGraph.generate(
 		hash([wfc_base, "layout", floor_index]),
 		room_size,
 		room_cols,
-		room_rows
+		room_rows,
+		weights
 	)
 
 	var floor_placed: Array = []

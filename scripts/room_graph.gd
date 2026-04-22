@@ -47,18 +47,21 @@ var connections: Array[ConnectionData] = []
 
 
 # Generate a room_cols × room_rows building layout.
-# room_size: size of each individual room in tiles (includes wall border).
+# room_size:    size of each individual room in tiles (includes wall border).
+# room_weights: optional Dict[TileMeta.RoomType → float] from BuildingArchetype.
+#               Empty or null → equal-weight default selection.
 static func generate(
 	seed: int,
 	room_size: Vector2i,
 	room_cols: int,
-	room_rows: int
+	room_rows: int,
+	room_weights: Dictionary = {}
 ) -> RoomGraph:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 
 	var graph := RoomGraph.new()
-	var room_types := _shuffled_room_types(rng, room_cols * room_rows)
+	var room_types := _shuffled_room_types(rng, room_cols * room_rows, room_weights)
 
 	# Create rooms in a grid
 	for row in room_rows:
@@ -167,21 +170,47 @@ static func _pick_door_pos(rng: RandomNumberGenerator, origin_axis: int, length:
 	return lo + rng.randi() % max(1, hi - lo)
 
 
-static func _shuffled_room_types(rng: RandomNumberGenerator, count: int) -> Array[int]:
-	# Assign room types so HALL appears roughly once, then varied room types fill in.
+static func _shuffled_room_types(
+	rng:          RandomNumberGenerator,
+	count:        int,
+	room_weights: Dictionary = {}
+) -> Array[int]:
 	var pool: Array[int] = []
 
-	# One hall per building (first room is always the hall)
-	pool.append(TileMeta.RoomType.HALL)
+	if room_weights.is_empty():
+		# Default equal-weight selection: one HALL guaranteed, then KITCHEN/BEDROOM/BATHROOM/LIVING_ROOM
+		pool.append(TileMeta.RoomType.HALL)
+		var others := [
+			TileMeta.RoomType.KITCHEN,
+			TileMeta.RoomType.BEDROOM,
+			TileMeta.RoomType.BATHROOM,
+			TileMeta.RoomType.LIVING_ROOM,
+		]
+		while pool.size() < count:
+			pool.append(others[rng.randi() % others.size()])
+	else:
+		# Archetype-weighted selection. Build a weighted pick list from non-zero types.
+		var weighted_types: Array[int] = []
+		var weights: Array[float]      = []
+		for rt: int in room_weights:
+			var w: float = room_weights[rt]
+			if w > 0.0:
+				weighted_types.append(rt)
+				weights.append(w)
 
-	var others := [
-		TileMeta.RoomType.KITCHEN,
-		TileMeta.RoomType.BEDROOM,
-		TileMeta.RoomType.BATHROOM,
-		TileMeta.RoomType.LIVING_ROOM,
-	]
-	while pool.size() < count:
-		pool.append(others[rng.randi() % others.size()])
+		if weighted_types.is_empty():
+			# Fallback: all room types equal weight.
+			for rt in TileMeta.RoomType.values():
+				weighted_types.append(rt)
+				weights.append(1.0)
+
+		# Guarantee at least one HALL (if HALL has non-zero weight in this archetype).
+		var hall_weight: float = room_weights.get(TileMeta.RoomType.HALL, -1.0)
+		if hall_weight > 0.0:
+			pool.append(TileMeta.RoomType.HALL)
+
+		while pool.size() < count:
+			pool.append(_weighted_pick_room(rng, weighted_types, weights))
 
 	# Shuffle
 	for i in range(pool.size() - 1, 0, -1):
@@ -191,3 +220,22 @@ static func _shuffled_room_types(rng: RandomNumberGenerator, count: int) -> Arra
 		pool[j] = tmp
 
 	return pool
+
+
+static func _weighted_pick_room(
+	rng:   RandomNumberGenerator,
+	types: Array[int],
+	wts:   Array[float]
+) -> int:
+	var total := 0.0
+	for w in wts:
+		total += w
+	if total <= 0.0:
+		return types[rng.randi() % types.size()]
+	var roll := rng.randf() * total
+	var acc  := 0.0
+	for i in types.size():
+		acc += wts[i]
+		if roll <= acc:
+			return types[i]
+	return types[types.size() - 1]
