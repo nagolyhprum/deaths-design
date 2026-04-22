@@ -1,0 +1,1 @@
+It seems that when the player moves against the edge of the map in the vertical direction they move pretty quickly but when moving against the edge of the map in the horizontal direction they move move slowly. Can you make it more consistent?

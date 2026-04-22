@@ -20,6 +20,7 @@ var _has_map_bounds := false
 func _physics_process(delta: float) -> void:
 	var raw_input := _read_input_vector()
 	var is_moving := raw_input != Vector2.ZERO
+	var previous_position := global_position
 
 	if is_moving:
 		velocity = _movement_vector_from_input(raw_input) * move_speed * _scene_scale
@@ -30,7 +31,7 @@ func _physics_process(delta: float) -> void:
 		_animation_time = 0.0
 
 	move_and_slide()
-	_clamp_to_play_area()
+	_clamp_to_play_area(previous_position)
 	_update_sprite(is_moving)
 
 
@@ -63,9 +64,16 @@ func _facing_row_from_input(input_vector: Vector2) -> int:
 	return 0
 
 
-func _clamp_to_play_area() -> void:
+func _clamp_to_play_area(previous_position: Vector2) -> void:
 	if _has_map_bounds:
-		set_map_ratio(get_map_ratio())
+		var previous_local := previous_position - _map_center
+		var current_local := global_position - _map_center
+		if _is_inside_map_bounds(current_local):
+			return
+		if _is_inside_map_bounds(previous_local):
+			global_position = _map_center + _find_boundary_intersection(previous_local, current_local)
+			return
+		global_position = _map_center + _clamp_local_position_to_bounds(current_local)
 		return
 
 	var viewport_size := get_viewport_rect().size
@@ -131,4 +139,38 @@ func _screen_to_grid(screen_position: Vector2) -> Vector2:
 	return Vector2(
 		(screen_position.x / _map_half_tile_size.x + screen_position.y / _map_half_tile_size.y) * 0.5,
 		(screen_position.y / _map_half_tile_size.y - screen_position.x / _map_half_tile_size.x) * 0.5
+	)
+
+
+func _is_inside_map_bounds(local_position: Vector2) -> bool:
+	var extents := _get_map_screen_extents()
+	var distance := absf(local_position.x) / extents.x + absf(local_position.y) / extents.y
+	return distance <= 1.0
+
+
+func _find_boundary_intersection(start_local: Vector2, end_local: Vector2) -> Vector2:
+	var low := 0.0
+	var high := 1.0
+	for _step in 20:
+		var mid := (low + high) * 0.5
+		var point := start_local.lerp(end_local, mid)
+		if _is_inside_map_bounds(point):
+			low = mid
+		else:
+			high = mid
+	return start_local.lerp(end_local, low)
+
+
+func _clamp_local_position_to_bounds(local_position: Vector2) -> Vector2:
+	var extents := _get_map_screen_extents()
+	var distance := absf(local_position.x) / extents.x + absf(local_position.y) / extents.y
+	if distance <= 1.0:
+		return local_position
+	return local_position / distance
+
+
+func _get_map_screen_extents() -> Vector2:
+	return Vector2(
+		max(_map_half_tile_size.x * _map_radius * 2.0, 1.0),
+		max(_map_half_tile_size.y * _map_radius * 2.0, 1.0)
 	)
