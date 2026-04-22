@@ -6,14 +6,33 @@ const MIN_SCENE_SCALE := 0.25
 const CONTENT_SCALE := 0.85
 const TILE_HALF_WIDTH := 64.0
 const TILE_HALF_HEIGHT := 32.0
+const INTERIOR_TILE_TEXTURE := preload("res://assets/tiles/interiors/room_structure_tilesheet.png")
+const INTERIOR_TILE_SIZE := Vector2i(128, 160)
+const INTERIOR_TILE_ANCHOR := Vector2(64.0, 122.0)
 const GRID_RADIUS := 5
 const MAP_BOUND_RADIUS := GRID_RADIUS + 0.5
 const GRID_CENTER_OFFSET := Vector2(0.0, 84.0)
 const INSTRUCTIONS_POSITION := Vector2(24.0, 20.0)
 const INSTRUCTIONS_SIZE := Vector2(469.0, 56.0)
 const INSTRUCTIONS_FONT_SIZE := 18
+const ROOM_LAYOUT := [
+	{"atlas": Vector2i(0, 2), "grid": Vector2(-3, -4), "collision": "wall"},
+	{"atlas": Vector2i(0, 0), "grid": Vector2(-2, -4), "collision": "wall"},
+	{"atlas": Vector2i(1, 0), "grid": Vector2(-1, -4), "collision": "wall"},
+	{"atlas": Vector2i(3, 1), "grid": Vector2(0, -4), "collision": "wall"},
+	{"atlas": Vector2i(2, 0), "grid": Vector2(1, -4), "collision": "wall"},
+	{"atlas": Vector2i(1, 2), "grid": Vector2(2, -4), "collision": "wall"},
+	{"atlas": Vector2i(2, 2), "grid": Vector2(-3, -2), "collision": "counter"},
+	{"atlas": Vector2i(3, 0), "grid": Vector2(-2, -2), "collision": "counter"},
+	{"atlas": Vector2i(0, 1), "grid": Vector2(0, -1), "collision": ""},
+	{"atlas": Vector2i(1, 1), "grid": Vector2(0, -1), "collision": "table"},
+	{"atlas": Vector2i(2, 1), "grid": Vector2(2, -1), "collision": "plant"},
+	{"atlas": Vector2i(3, 2), "grid": Vector2(2, 1), "collision": "small_table"},
+]
 
 @onready var player = $Player
+@onready var room_decor: Node2D = $RoomDecor
+@onready var room_collision: Node2D = $RoomCollision
 @onready var instructions: Label = $CanvasLayer/Instructions
 
 var _scene_scale := 1.0
@@ -63,6 +82,7 @@ func _apply_responsive_layout(preserve_player_position: bool) -> void:
 	_scene_scale = max(min(viewport_size.x / BASE_VIEWPORT_SIZE.x, viewport_size.y / BASE_VIEWPORT_SIZE.y) * CONTENT_SCALE, MIN_SCENE_SCALE)
 	var tile_half_size := Vector2(TILE_HALF_WIDTH, TILE_HALF_HEIGHT) * _scene_scale
 	var map_center := viewport_size * 0.5 + GRID_CENTER_OFFSET * _scene_scale
+	_rebuild_room_layout(map_center, tile_half_size)
 	player.set_scene_scale(_scene_scale)
 	player.set_map_bounds(map_center, tile_half_size, MAP_BOUND_RADIUS)
 	player.set_map_ratio(player_ratio)
@@ -74,6 +94,71 @@ func _layout_instructions() -> void:
 	instructions.position = INSTRUCTIONS_POSITION * _scene_scale
 	instructions.size = INSTRUCTIONS_SIZE * _scene_scale
 	instructions.add_theme_font_size_override("font_size", maxi(int(round(INSTRUCTIONS_FONT_SIZE * _scene_scale)), 10))
+
+
+func _rebuild_room_layout(map_center: Vector2, tile_half_size: Vector2) -> void:
+	for child in room_decor.get_children():
+		child.free()
+	for child in room_collision.get_children():
+		child.free()
+
+	for item in ROOM_LAYOUT:
+		var tile_center := map_center + _iso_to_screen(item["grid"], tile_half_size.x, tile_half_size.y)
+		var sprite := Sprite2D.new()
+		sprite.centered = false
+		sprite.texture = _build_atlas_texture(item["atlas"])
+		sprite.position = tile_center - INTERIOR_TILE_ANCHOR * _scene_scale
+		sprite.scale = Vector2.ONE * _scene_scale
+		room_decor.add_child(sprite)
+
+		if item["collision"] != "":
+			room_collision.add_child(_build_collision_body(item["collision"], tile_center))
+
+
+func _build_atlas_texture(atlas_coords: Vector2i) -> AtlasTexture:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = INTERIOR_TILE_TEXTURE
+	atlas.region = Rect2(
+		Vector2(atlas_coords.x * INTERIOR_TILE_SIZE.x, atlas_coords.y * INTERIOR_TILE_SIZE.y),
+		Vector2(INTERIOR_TILE_SIZE.x, INTERIOR_TILE_SIZE.y)
+	)
+	return atlas
+
+
+func _build_collision_body(collision_kind: String, tile_center: Vector2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	var shape_node := CollisionShape2D.new()
+	body.position = tile_center
+	body.add_child(shape_node)
+
+	match collision_kind:
+		"wall":
+			var shape := RectangleShape2D.new()
+			shape.size = Vector2(90.0, 26.0) * _scene_scale
+			shape_node.shape = shape
+			shape_node.position = Vector2(0.0, -18.0) * _scene_scale
+		"counter":
+			var shape := RectangleShape2D.new()
+			shape.size = Vector2(62.0, 30.0) * _scene_scale
+			shape_node.shape = shape
+			shape_node.position = Vector2(0.0, 8.0) * _scene_scale
+		"table":
+			var shape := CircleShape2D.new()
+			shape.radius = 20.0 * _scene_scale
+			shape_node.shape = shape
+			shape_node.position = Vector2(0.0, 10.0) * _scene_scale
+		"small_table":
+			var shape := CircleShape2D.new()
+			shape.radius = 15.0 * _scene_scale
+			shape_node.shape = shape
+			shape_node.position = Vector2(0.0, 10.0) * _scene_scale
+		"plant":
+			var shape := CircleShape2D.new()
+			shape.radius = 16.0 * _scene_scale
+			shape_node.shape = shape
+			shape_node.position = Vector2(0.0, 12.0) * _scene_scale
+
+	return body
 
 
 func _iso_to_screen(grid_position: Vector2, tile_half_width: float, tile_half_height: float) -> Vector2:
