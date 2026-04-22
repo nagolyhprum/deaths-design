@@ -1,0 +1,1 @@
+I want you to fully design the test room with the tiles you created. Put the corner, top left, and top right walls where appropriate. Add a door somewhere along the top right wall and adding 1-2 windows on each wall. Use a good combination of furniture and rug layout to make it look like a real room.

@@ -16,19 +16,26 @@ const INSTRUCTIONS_POSITION := Vector2(24.0, 20.0)
 const INSTRUCTIONS_SIZE := Vector2(469.0, 56.0)
 const INSTRUCTIONS_FONT_SIZE := 18
 const ROOM_LAYOUT := [
-	{"atlas": Vector2i(0, 2), "grid": Vector2(-3, -4), "collision": "wall"},
-	{"atlas": Vector2i(0, 0), "grid": Vector2(-2, -4), "collision": "wall"},
-	{"atlas": Vector2i(1, 0), "grid": Vector2(-1, -4), "collision": "wall"},
-	{"atlas": Vector2i(1, 1), "grid": Vector2(0, -4), "collision": "wall"},
-	{"atlas": Vector2i(2, 1), "grid": Vector2(1, -4), "collision": "wall"},
-	{"atlas": Vector2i(3, 1), "grid": Vector2(2, -4), "collision": "wall"},
-	{"atlas": Vector2i(1, 3), "grid": Vector2(-3, -2), "collision": "counter"},
+	{"atlas": Vector2i(1, 0), "grid": Vector2(-4, -4), "collision": "wall"},
+	{"atlas": Vector2i(0, 0), "grid": Vector2(-3, -4), "collision": "wall"},
+	{"atlas": Vector2i(3, 0), "grid": Vector2(-2, -4), "collision": "wall"},
+	{"atlas": Vector2i(0, 2), "grid": Vector2(-1, -4), "collision": "wall"},
+	{"atlas": Vector2i(3, 1), "grid": Vector2(0, -4), "collision": "wall"},
+	{"atlas": Vector2i(1, 1), "grid": Vector2(1, -4), "collision": "wall"},
+	{"atlas": Vector2i(2, 1), "grid": Vector2(2, -4), "collision": "wall"},
+	{"atlas": Vector2i(1, 1), "grid": Vector2(3, -4), "collision": "wall"},
+	{"atlas": Vector2i(1, 3), "grid": Vector2(-4, -2), "collision": "counter"},
+	{"atlas": Vector2i(1, 2), "grid": Vector2(-3, -2), "collision": "counter"},
 	{"atlas": Vector2i(1, 2), "grid": Vector2(-2, -2), "collision": "counter"},
-	{"atlas": Vector2i(2, 2), "grid": Vector2(0, -1), "collision": ""},
-	{"atlas": Vector2i(3, 2), "grid": Vector2(0, -1), "collision": "table"},
-	{"atlas": Vector2i(0, 3), "grid": Vector2(2, -1), "collision": "plant"},
-	{"atlas": Vector2i(2, 3), "grid": Vector2(2, 1), "collision": "small_table"},
-	{"atlas": Vector2i(3, 3), "grid": Vector2(-1, 1), "collision": ""},
+	{"atlas": Vector2i(3, 3), "grid": Vector2(2, -2), "collision": ""},
+	{"atlas": Vector2i(3, 3), "grid": Vector2(1, -1), "collision": ""},
+	{"atlas": Vector2i(0, 3), "grid": Vector2(-4, 0), "collision": "plant"},
+	{"atlas": Vector2i(3, 3), "grid": Vector2(-1, 0), "collision": ""},
+	{"atlas": Vector2i(2, 2), "grid": Vector2(0, 1), "collision": ""},
+	{"atlas": Vector2i(3, 2), "grid": Vector2(0, 1), "collision": "table"},
+	{"atlas": Vector2i(3, 3), "grid": Vector2(2, 2), "collision": ""},
+	{"atlas": Vector2i(2, 3), "grid": Vector2(2, 2), "collision": "small_table"},
+	{"atlas": Vector2i(0, 3), "grid": Vector2(3, 1), "collision": "plant"},
 ]
 
 @onready var player = $Player
