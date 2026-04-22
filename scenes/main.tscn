@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://cu8hs6edjw88f"]
 
-[ext_resource type="Script" path="res://scripts/test_level.gd" id="1_level_script"]
+[ext_resource type="Script" uid="uid://je5nx68f1ipr" path="res://scripts/test_level.gd" id="1_level_script"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player_scene"]
 
 [node name="Main" type="Node2D"]
@@ -21,4 +21,4 @@ offset_right = 493.0
 offset_bottom = 76.0
 theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
-text = "Move with WASD or Arrow Keys\\nUp, down, left, and right now follow the screen while the sprite keeps the nearest diagonal facing."
+text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad\\nUp, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."

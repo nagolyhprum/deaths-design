@@ -2,6 +2,11 @@ extends CharacterBody2D
 
 const WALK_FRAMES := [0, 1, 2, 1]
 const ISOMETRIC_VERTICAL_WEIGHT := 0.5
+const MOVE_ACTION_LEFT := "move_left"
+const MOVE_ACTION_RIGHT := "move_right"
+const MOVE_ACTION_UP := "move_up"
+const MOVE_ACTION_DOWN := "move_down"
+const MOVE_INPUT_DEADZONE := 0.2
 
 @export var move_speed := 220.0
 @export var animation_fps := 8.0
@@ -36,9 +41,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _read_input_vector() -> Vector2:
-	var x := int(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - int(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
-	var y := int(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)) - int(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP))
-	return Vector2(x, y)
+	return Input.get_vector(
+		MOVE_ACTION_LEFT,
+		MOVE_ACTION_RIGHT,
+		MOVE_ACTION_UP,
+		MOVE_ACTION_DOWN,
+		MOVE_INPUT_DEADZONE
+	)
 
 
 func _movement_vector_from_input(input_vector: Vector2) -> Vector2:
