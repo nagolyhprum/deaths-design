@@ -71,7 +71,7 @@ func _clamp_to_play_area(previous_position: Vector2) -> void:
 		if _is_inside_map_bounds(current_local):
 			return
 		if _is_inside_map_bounds(previous_local):
-			global_position = _map_center + _find_boundary_intersection(previous_local, current_local)
+			global_position = _map_center + _resolve_edge_slide(previous_local, current_local)
 			return
 		global_position = _map_center + _clamp_local_position_to_bounds(current_local)
 		return
@@ -161,6 +161,23 @@ func _find_boundary_intersection(start_local: Vector2, end_local: Vector2) -> Ve
 	return start_local.lerp(end_local, low)
 
 
+func _resolve_edge_slide(start_local: Vector2, end_local: Vector2) -> Vector2:
+	var contact_point := _find_boundary_intersection(start_local, end_local)
+	var attempted_motion := end_local - start_local
+	var remaining_distance := maxf(attempted_motion.length() - start_local.distance_to(contact_point), 0.0)
+	if remaining_distance <= 0.001:
+		return contact_point
+
+	var slide_direction := _get_slide_direction(contact_point, attempted_motion)
+	if slide_direction == Vector2.ZERO:
+		return contact_point
+
+	var slide_target := contact_point + slide_direction * remaining_distance
+	if _is_inside_map_bounds(slide_target):
+		return slide_target
+	return _find_boundary_intersection(contact_point, slide_target)
+
+
 func _clamp_local_position_to_bounds(local_position: Vector2) -> Vector2:
 	var extents := _get_map_screen_extents()
 	var distance := absf(local_position.x) / extents.x + absf(local_position.y) / extents.y
@@ -174,3 +191,49 @@ func _get_map_screen_extents() -> Vector2:
 		max(_map_half_tile_size.x * _map_radius * 2.0, 1.0),
 		max(_map_half_tile_size.y * _map_radius * 2.0, 1.0)
 	)
+
+
+func _get_slide_direction(contact_point: Vector2, attempted_motion: Vector2) -> Vector2:
+	var candidates := _get_edge_tangent_candidates(contact_point)
+	var best_direction := Vector2.ZERO
+	var best_alignment := 0.0
+
+	for candidate in candidates:
+		var alignment := attempted_motion.dot(candidate)
+		if absf(alignment) <= best_alignment:
+			continue
+		best_alignment = absf(alignment)
+		best_direction = candidate if alignment >= 0.0 else -candidate
+
+	return best_direction
+
+
+func _get_edge_tangent_candidates(contact_point: Vector2) -> Array[Vector2]:
+	var extents := _get_map_screen_extents()
+	var epsilon := 0.001
+	var x_signs: Array[float] = []
+	var y_signs: Array[float] = []
+
+	if absf(contact_point.x) <= epsilon:
+		x_signs = [-1.0, 1.0]
+	else:
+		x_signs = [signf(contact_point.x)]
+
+	if absf(contact_point.y) <= epsilon:
+		y_signs = [-1.0, 1.0]
+	else:
+		y_signs = [signf(contact_point.y)]
+
+	var tangents: Array[Vector2] = []
+	for x_sign in x_signs:
+		for y_sign in y_signs:
+			var tangent := Vector2(y_sign * extents.x, -x_sign * extents.y).normalized()
+			var is_unique := true
+			for existing in tangents:
+				if existing.is_equal_approx(tangent) or existing.is_equal_approx(-tangent):
+					is_unique = false
+					break
+			if is_unique:
+				tangents.append(tangent)
+
+	return tangents
