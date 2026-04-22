@@ -1,0 +1,1 @@
+There seems to be an issues with how the window, doors, and pictures are on the wall. They are kind of just hanging off the wall rather than being flush with the wall as if they are on or part of the wall. Can you make this fix?
