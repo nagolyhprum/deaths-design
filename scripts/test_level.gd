@@ -1,11 +1,13 @@
 extends Node2D
 
 const BASE_VIEWPORT_SIZE := Vector2(1280.0, 720.0)
-const DEFAULT_PLAYER_RATIO := Vector2(0.5, 0.5597015)
+const DEFAULT_PLAYER_RATIO := Vector2(0.5, 0.5)
 const MIN_SCENE_SCALE := 0.25
+const CONTENT_SCALE := 0.85
 const TILE_HALF_WIDTH := 64.0
 const TILE_HALF_HEIGHT := 32.0
 const GRID_RADIUS := 5
+const MAP_BOUND_RADIUS := GRID_RADIUS + 0.5
 const GRID_CENTER_OFFSET := Vector2(0.0, 84.0)
 const INSTRUCTIONS_POSITION := Vector2(24.0, 20.0)
 const INSTRUCTIONS_SIZE := Vector2(469.0, 56.0)
@@ -15,7 +17,6 @@ const INSTRUCTIONS_FONT_SIZE := 18
 @onready var instructions: Label = $CanvasLayer/Instructions
 
 var _scene_scale := 1.0
-var _last_viewport_size := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -56,15 +57,16 @@ func _apply_responsive_layout(preserve_player_position: bool) -> void:
 		return
 
 	var player_ratio := DEFAULT_PLAYER_RATIO
-	if preserve_player_position and _last_viewport_size != Vector2.ZERO:
-		var previous_play_area: Rect2 = player.get_play_area_rect(_last_viewport_size)
-		player_ratio = player.get_position_ratio(previous_play_area)
+	if preserve_player_position:
+		player_ratio = player.get_map_ratio()
 
-	_scene_scale = max(min(viewport_size.x / BASE_VIEWPORT_SIZE.x, viewport_size.y / BASE_VIEWPORT_SIZE.y), MIN_SCENE_SCALE)
+	_scene_scale = max(min(viewport_size.x / BASE_VIEWPORT_SIZE.x, viewport_size.y / BASE_VIEWPORT_SIZE.y) * CONTENT_SCALE, MIN_SCENE_SCALE)
+	var tile_half_size := Vector2(TILE_HALF_WIDTH, TILE_HALF_HEIGHT) * _scene_scale
+	var map_center := viewport_size * 0.5 + GRID_CENTER_OFFSET * _scene_scale
 	player.set_scene_scale(_scene_scale)
-	player.set_position_ratio(player.get_play_area_rect(viewport_size), player_ratio)
+	player.set_map_bounds(map_center, tile_half_size, MAP_BOUND_RADIUS)
+	player.set_map_ratio(player_ratio)
 	_layout_instructions()
-	_last_viewport_size = viewport_size
 	queue_redraw()
 
 

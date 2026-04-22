@@ -5,13 +5,16 @@ const ISOMETRIC_VERTICAL_WEIGHT := 0.5
 
 @export var move_speed := 220.0
 @export var animation_fps := 8.0
-@export var play_area_margin := Vector2(56.0, 92.0)
 
 @onready var sprite: Sprite2D = $Sprite2D
 
 var _animation_time := 0.0
 var _facing_row := 0
 var _scene_scale := 1.0
+var _map_center := Vector2.ZERO
+var _map_half_tile_size := Vector2.ONE
+var _map_radius := 0.0
+var _has_map_bounds := false
 
 
 func _physics_process(delta: float) -> void:
@@ -27,7 +30,7 @@ func _physics_process(delta: float) -> void:
 		_animation_time = 0.0
 
 	move_and_slide()
-	_clamp_to_viewport()
+	_clamp_to_play_area()
 	_update_sprite(is_moving)
 
 
@@ -60,9 +63,13 @@ func _facing_row_from_input(input_vector: Vector2) -> int:
 	return 0
 
 
-func _clamp_to_viewport() -> void:
-	var play_area := get_play_area_rect(get_viewport_rect().size)
-	set_position_ratio(play_area, get_position_ratio(play_area))
+func _clamp_to_play_area() -> void:
+	if _has_map_bounds:
+		set_map_ratio(get_map_ratio())
+		return
+
+	var viewport_size := get_viewport_rect().size
+	global_position = global_position.clamp(Vector2.ZERO, viewport_size)
 
 
 func _update_sprite(is_moving: bool) -> void:
@@ -77,30 +84,51 @@ func set_scene_scale(scene_scale: float) -> void:
 	scale = Vector2.ONE * _scene_scale
 
 
-func get_play_area_margin() -> Vector2:
-	return play_area_margin * _scene_scale
-
-
-func get_play_area_rect(viewport_size: Vector2) -> Rect2:
-	var margin := get_play_area_margin()
-	return Rect2(
-		margin,
-		Vector2(
-			max(viewport_size.x - margin.x * 2.0, 1.0),
-			max(viewport_size.y - margin.y * 2.0, 1.0)
-		)
+func set_map_bounds(map_center: Vector2, map_half_tile_size: Vector2, map_radius: float) -> void:
+	_map_center = map_center
+	_map_half_tile_size = Vector2(
+		max(map_half_tile_size.x, 1.0),
+		max(map_half_tile_size.y, 1.0)
 	)
+	_map_radius = max(map_radius, 0.0)
+	_has_map_bounds = true
 
 
-func get_position_ratio(play_area: Rect2) -> Vector2:
+func get_map_ratio() -> Vector2:
+	if not _has_map_bounds or _map_radius <= 0.0:
+		return Vector2(0.5, 0.5)
+
+	var grid_position := _screen_to_grid(global_position - _map_center)
 	return Vector2(
-		clampf((global_position.x - play_area.position.x) / play_area.size.x, 0.0, 1.0),
-		clampf((global_position.y - play_area.position.y) / play_area.size.y, 0.0, 1.0)
+		clampf((grid_position.x + _map_radius) / (_map_radius * 2.0), 0.0, 1.0),
+		clampf((grid_position.y + _map_radius) / (_map_radius * 2.0), 0.0, 1.0)
 	)
 
 
-func set_position_ratio(play_area: Rect2, ratio: Vector2) -> void:
-	global_position = play_area.position + play_area.size * Vector2(
+func set_map_ratio(ratio: Vector2) -> void:
+	if not _has_map_bounds:
+		return
+
+	var clamped_ratio := Vector2(
 		clampf(ratio.x, 0.0, 1.0),
 		clampf(ratio.y, 0.0, 1.0)
+	)
+	var grid_position := Vector2(
+		lerpf(-_map_radius, _map_radius, clamped_ratio.x),
+		lerpf(-_map_radius, _map_radius, clamped_ratio.y)
+	)
+	global_position = _map_center + _grid_to_screen(grid_position)
+
+
+func _grid_to_screen(grid_position: Vector2) -> Vector2:
+	return Vector2(
+		(grid_position.x - grid_position.y) * _map_half_tile_size.x,
+		(grid_position.x + grid_position.y) * _map_half_tile_size.y
+	)
+
+
+func _screen_to_grid(screen_position: Vector2) -> Vector2:
+	return Vector2(
+		(screen_position.x / _map_half_tile_size.x + screen_position.y / _map_half_tile_size.y) * 0.5,
+		(screen_position.y / _map_half_tile_size.y - screen_position.x / _map_half_tile_size.x) * 0.5
 	)
