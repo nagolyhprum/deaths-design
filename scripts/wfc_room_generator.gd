@@ -52,7 +52,7 @@ class TileDef extends RefCounted:
 
 
 # Pre-built catalog shared across calls.
-static var _catalog: Array[TileDef] = []
+static var _catalog: Array = []
 static var _catalog_by_key: Dictionary = {}  # "src:ax:ay" -> TileDef
 
 
@@ -60,10 +60,10 @@ static func _ensure_catalog() -> void:
 	if not _catalog.is_empty():
 		return
 
-	const E := TileMeta.Socket.EMPTY
-	const F := TileMeta.Socket.FLOOR
-	const W := TileMeta.Socket.WALL
-	const D := TileMeta.Socket.DOOR
+	var E := TileMeta.Socket.EMPTY
+	var F := TileMeta.Socket.FLOOR
+	var W := TileMeta.Socket.WALL
+	var D := TileMeta.Socket.DOOR
 
 	# Walls — direction encoded as atlas x (NWES = 0123)
 	_add(TileDef.new(WALL_SOURCE_ID, Vector2i(TileMeta.Direction.NORTH, 0), E, F, W, W))
@@ -162,7 +162,7 @@ static func _run(
 					row[x] = [def] if def != null else []
 				else:
 					# Interior: all floor variants are options
-					var opts: Array[TileDef] = []
+					var opts: Array = []
 					for t in _catalog:
 						if t.source_id == FLOOR_SOURCE_ID:
 							opts.append(t)

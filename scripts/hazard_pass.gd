@@ -69,7 +69,7 @@ class PlacedHazard extends RefCounted:
 #   stove.reset_mode   = "respawn"
 #   HAZARD_PALETTE.append(stove)
 #
-static var HAZARD_PALETTE: Array[HazardDef] = []
+static var HAZARD_PALETTE: Array = []
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

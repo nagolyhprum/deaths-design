@@ -40,7 +40,7 @@ class PropDef extends RefCounted:
 #   PropDef.new() with source_id=9, atlas=Vector2i(4,0),
 #   anchor=TileMeta.Anchor.WALL_N, room_types=[], weight=1.0, clearance=1
 #
-static var PROP_PALETTE: Array[PropDef] = []
+static var PROP_PALETTE: Array = []
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ static func _try_place(
 	var door_cells := _door_cells(floor_layer, origin, size)
 
 	# Collect eligible props for this room type
-	var eligible: Array[PropDef] = []
+	var eligible: Array = []
 	for p in PROP_PALETTE:
 		if p.matches_room(room_type):
 			eligible.append(p)
