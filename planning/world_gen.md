@@ -100,14 +100,29 @@ Multi-pass procedural generation of multi-floor buildings:
 - [x] Reachability guarantee: every floor accessible from spawn — `_validate_multifloor_reachability()` flood-fills from each floor's first interior cell to all its stair positions; warns on failure
 - [x] Per-seed building cache so deaths don't trigger regeneration — `scripts/building_cache.gd` keyed by `hash([seed, num_floors, has_basement])`; `generate()` restores from cache on hit; `BuildingCache.clear()` on new game
 
-### Phase 4 — Hazards
+### Phase 4 — Hazards *(complete as of 2026-04-22)*
 
-- [ ] Hazard definitions per room type (kitchen → stove fire, stairwell → fall, …) as a prop subtype
-- [ ] Dedicated `hazards` RNG stream (independent of furniture stream so adding hazards doesn't shift existing furniture layouts)
-- [ ] Hazards placed by the same furniture pass pipeline, gated by room type
-- [ ] Telegraph-tile visibility validation from likely approach paths
-- [ ] Trigger → warning → consequence → reset flow per hazard
-- [ ] Death/restart integration
+> ⚠️ **MANUAL EDITOR STEP REQUIRED — hazard tile assets and game-scene wiring:**
+>
+> 1. **⚠️ MANUAL EDITOR STEP REQUIRED — Add hazard tile assets** to `building_tiles.tres`. Source IDs 40+ are recommended placeholders. Once authored, add `HazardDef` entries to `HazardPass.HAZARD_PALETTE` in `scripts/hazard_pass.gd` (commented example is in the file). Assign `hazard_type`, `anchor`, `room_types`, `warning_offsets`, and `trigger_radius` per hazard.
+>
+> 2. **⚠️ MANUAL EDITOR STEP REQUIRED — Register HazardManager as an autoload** in Project Settings → Autoload, pointing to `res://scripts/hazard_manager.gd` with the name `HazardManager`. Call `HazardManager.register_hazard(cell, type)` for each `PlacedHazard` returned by `BuildingGen.get_placed_hazards(floor)` after generation.
+>
+> 3. **⚠️ MANUAL EDITOR STEP REQUIRED — Wire hazard signals in the game scene / player controller:**
+>    - `HazardManager.hazard_triggered.connect(_on_hazard_triggered)` → kill the player
+>    - `HazardManager.hazard_warning.connect(_on_hazard_warning)` → play warning VFX
+>    - `HazardManager.hazard_reset.connect(_on_hazard_reset)` → hide warning VFX
+>    - Call `HazardManager.player_near_hazard(tile_pos)` and `HazardManager.player_on_hazard(tile_pos)` from the player controller each frame, based on the player's current tile position vs registered hazard cells.
+>    - Call `HazardManager.reset_all()` on respawn.
+>
+> All code infrastructure is complete. The palette, state machine, and telegraph validator are all in place.
+
+- [x] Hazard definitions per room type (`HazardDef` in `scripts/hazard_pass.gd`) — `hazard_type`, `anchor`, `room_types`, `warning_offsets`, `trigger_radius`, `consequence`, `reset_mode`; `TileMeta.HazardType` enum added (`STOVE_FIRE`, `FALL`, `FALLING_OBJECT`, `ELECTROCUTION`)
+- [x] Dedicated `hazards` RNG stream (`streams.derive_seed("hazards")`) — independent of furniture stream so adding hazards never perturbs furniture layouts
+- [x] Hazards placed by the same furniture pass pipeline, gated by room type — `HazardPass.generate()` in `scripts/hazard_pass.gd`; called per-room after FurniturePass in `building_gen.gd`; `_hazards_layers` dict + `DynHazards_<n>` dynamic layers added to multi-floor path
+- [x] Telegraph-tile visibility validation from likely approach paths — `HazardPass._validate_telegraph()`: at least one `warning_offsets` cell must land on a walkable floor tile; rejects placement otherwise
+- [x] Trigger → warning → consequence → reset flow per hazard — `HazardManager` in `scripts/hazard_manager.gd`: `IDLE→WARNING→TRIGGERED` state machine with `player_near_hazard()`, `player_on_hazard()`, `reset_hazard()`, `reset_all()`; signals `hazard_warning`, `hazard_triggered`, `hazard_reset`; `reset_mode` controls which hazards survive a respawn
+- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Death/restart integration: wire `HazardManager.hazard_triggered` → kill player; call `reset_all()` on respawn; add hazard tile assets and register them in `HazardPass.HAZARD_PALETTE`
 
 ### Phase 5 — Building variety + content
 
@@ -139,3 +154,4 @@ Multi-pass procedural generation of multi-floor buildings:
 - *2026-04-22* — Phase 1 completed (code). Missing items deferred to editor authoring session: TileSet custom data layers, collision shapes per tile, prop tile assets. `wfc_room_generator.gd`, `furniture_pass.gd` written; `building_gen.gd` updated to use both; `PropsLayer` added to `building_gen.tscn`; seed persistence added to `world_gen.gd`; `ROOM_LAYOUT` removed from `test_level.gd`.
 - *2026-04-22* — Phase 2 implemented (code). `room_graph.gd` generates grid-based floor plans with RoomType assignment and door constraints. `building_gen.gd` runs per-room WFC with door stitching and flood-fill connectivity validation. Camera2D child added to `player.tscn`. Prop palettes and outdoor routing remain stubs pending tile assets.
 - *2026-04-22* — Phase 3 implemented (code). `stair_placer.gd` picks one interior stair position per adjacent floor pair. `building_gen.gd` extended with `num_floors`, `has_basement`, `switch_floor()`, `floor_changed` signal, and cross-floor reachability validation. `building_cache.gd` added for per-seed tile caching. `wfc_room_generator.gd` extended with `STAIR_UP_SOURCE_ID = 30` and `STAIR_DOWN_SOURCE_ID = 31` placeholder constants and catalog entries. Manual editor steps remain: stair tile assets (source IDs 30/31) and player teleport wiring on `floor_changed`.
+- *2026-04-22* — Phase 4 implemented (code). `hazard_pass.gd` added: `HazardDef` prop subtype with `hazard_type/trigger_radius/warning_offsets/consequence/reset_mode`; `HazardPass.generate()` mirrors FurniturePass pipeline with its own `hazards` RNG stream; telegraph-visibility validator rejects placements without a walkable warning tile. `hazard_manager.gd` added: `IDLE→WARNING→TRIGGERED` state machine with `player_near_hazard/player_on_hazard/reset_hazard/reset_all`; `reset_mode="never"` hazards survive respawn. `building_gen.gd` extended: `_hazards_layers` dict, `DynHazards_<n>` dynamic layers, `get_placed_hazards(floor)` API, hazard layers included in cache snapshots. `TileMeta.HazardType` enum and `TileMeta.RoomType.STORE` added. Manual editor steps remain: hazard tile assets, HazardManager autoload registration, player-controller signal wiring.

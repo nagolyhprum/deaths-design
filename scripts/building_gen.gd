@@ -19,6 +19,11 @@ extends Node2D
 # constraints (STAIR_UP on the lower floor, STAIR_DOWN on the upper floor at the
 # same XY). switch_floor() toggles layer visibility. Generated tile data is cached
 # by seed via BuildingCache so deaths don't retrigger generation.
+#
+# Phase 4 (hazards): HazardPass runs after FurniturePass per room with its own
+# dedicated `hazards` RNG sub-stream. Placed hazards are stored in _placed_hazards
+# and exposed via get_placed_hazards(floor). Register them into HazardManager after
+# generation to enable the runtime trigger→warning→consequence→reset flow.
 
 @export var building_seed: int = 0
 @export var room_size:     Vector2i = Vector2i(8, 8)
@@ -36,9 +41,12 @@ signal floor_changed(new_floor: int)
 var _active_floor: int = 0
 
 # Populated during multi-floor generation; empty in single-floor mode.
-var _floor_layers: Dictionary = {}   # floor_index (int) -> TileMapLayer
-var _props_layers: Dictionary = {}   # floor_index (int) -> TileMapLayer
-var _stair_pairs:  Array      = []   # Array[StairPlacer.StairData]
+var _floor_layers:   Dictionary = {}  # floor_index (int) -> TileMapLayer
+var _props_layers:   Dictionary = {}  # floor_index (int) -> TileMapLayer
+var _hazards_layers: Dictionary = {}  # floor_index (int) -> TileMapLayer
+var _stair_pairs:    Array      = []  # Array[StairPlacer.StairData]
+# Accumulated across all generate() calls; key = floor_index.
+var _placed_hazards: Dictionary = {}  # floor_index (int) -> Array[HazardPass.PlacedHazard]
 
 
 func _ready() -> void:
@@ -55,6 +63,7 @@ func randomize_building_seed() -> void:
 
 
 func generate() -> void:
+	_placed_hazards.clear()
 	var streams := RngStreams.new(building_seed)
 
 	if num_floors > 1 or has_basement:
@@ -66,23 +75,28 @@ func generate() -> void:
 			push_warning("BuildingGen: expected a TileMapLayer child (floor)")
 			return
 
-		var props_layer := _get_props_layer()
+		var props_layer    := _get_props_layer()
+		var hazards_layer  := _get_hazards_layer()
 		floor_layer.clear()
 		if props_layer != null:
 			props_layer.clear()
+		if hazards_layer != null:
+			hazards_layer.clear()
 
 		if room_cols > 1 or room_rows > 1:
-			_generate_multi_room(floor_layer, props_layer, streams)
+			_generate_multi_room(floor_layer, props_layer, hazards_layer, streams)
 		else:
-			_generate_single_room(floor_layer, props_layer, streams)
+			_generate_single_room(floor_layer, props_layer, hazards_layer, streams)
 
 
 # ── Single-room (Phase 1) ─────────────────────────────────────────────────────
 
 func _generate_single_room(
-	floor_layer: TileMapLayer,
-	props_layer: TileMapLayer,
-	streams:     RngStreams
+	floor_layer:   TileMapLayer,
+	props_layer:   TileMapLayer,
+	hazards_layer: TileMapLayer,
+	streams:       RngStreams,
+	floor_index:   int = 0
 ) -> void:
 	WfcRoomGenerator.generate(
 		streams.derive_seed("wfc"),
@@ -101,13 +115,27 @@ func _generate_single_room(
 			TileMeta.RoomType.GENERIC
 		)
 
+	if hazards_layer != null:
+		var ph := HazardPass.generate(
+			streams.derive_seed("hazards"),
+			floor_layer,
+			hazards_layer,
+			Vector2i.ZERO,
+			room_size,
+			TileMeta.RoomType.GENERIC
+		)
+		if not ph.is_empty():
+			_placed_hazards[floor_index] = ph
+
 
 # ── Multi-room (Phase 2) ──────────────────────────────────────────────────────
 
 func _generate_multi_room(
-	floor_layer: TileMapLayer,
-	props_layer: TileMapLayer,
-	streams:     RngStreams
+	floor_layer:   TileMapLayer,
+	props_layer:   TileMapLayer,
+	hazards_layer: TileMapLayer,
+	streams:       RngStreams,
+	floor_index:   int = 0
 ) -> void:
 	var layout := RoomGraph.generate(
 		streams.derive_seed("layout"),
@@ -116,8 +144,11 @@ func _generate_multi_room(
 		room_rows
 	)
 
-	var wfc_base  := streams.derive_seed("wfc")
-	var furn_base := streams.derive_seed("furniture")
+	var wfc_base    := streams.derive_seed("wfc")
+	var furn_base   := streams.derive_seed("furniture")
+	var hazard_base := streams.derive_seed("hazards")
+
+	var floor_placed: Array = []
 
 	for i in layout.rooms.size():
 		var room: RoomGraph.RoomData = layout.rooms[i]
@@ -140,6 +171,20 @@ func _generate_multi_room(
 				room.size,
 				room.type
 			)
+
+		if hazards_layer != null:
+			var ph := HazardPass.generate(
+				hash([hazard_base, i]),
+				floor_layer,
+				hazards_layer,
+				room.origin,
+				room.size,
+				room.type
+			)
+			floor_placed.append_array(ph)
+
+	if not floor_placed.is_empty():
+		_placed_hazards[floor_index] = floor_placed
 
 	if not _validate_connectivity(floor_layer, layout):
 		push_warning("BuildingGen: connectivity check failed for seed %d" % building_seed)
@@ -164,8 +209,9 @@ func _generate_multifloor(streams: RngStreams) -> void:
 		floor_indices
 	)
 
-	var wfc_base  := streams.derive_seed("wfc")
-	var furn_base := streams.derive_seed("furniture")
+	var wfc_base    := streams.derive_seed("wfc")
+	var furn_base   := streams.derive_seed("furniture")
+	var hazard_base := streams.derive_seed("hazards")
 
 	for f in floor_indices:
 		_ensure_dynamic_layers(f)
@@ -173,15 +219,17 @@ func _generate_multifloor(streams: RngStreams) -> void:
 	for f in floor_indices:
 		var fl: TileMapLayer = _floor_layers[f]
 		var pl: TileMapLayer = _props_layers[f]
+		var hl: TileMapLayer = _hazards_layers[f]
 		fl.clear()
 		pl.clear()
+		hl.clear()
 
 		var stair_fixed := _stair_constraints_for_floor(f)
 
 		if room_cols > 1 or room_rows > 1:
-			_generate_floor_multi_room(fl, pl, wfc_base, furn_base, f, stair_fixed)
+			_generate_floor_multi_room(fl, pl, hl, wfc_base, furn_base, hazard_base, f, stair_fixed)
 		else:
-			_generate_floor_single_room(fl, pl, wfc_base, furn_base, f, stair_fixed)
+			_generate_floor_single_room(fl, pl, hl, wfc_base, furn_base, hazard_base, f, stair_fixed)
 
 	if not _validate_multifloor_reachability(floor_indices):
 		push_warning("BuildingGen: multi-floor reachability failed for seed %d" % building_seed)
@@ -191,12 +239,14 @@ func _generate_multifloor(streams: RngStreams) -> void:
 
 
 func _generate_floor_single_room(
-	fl:          TileMapLayer,
-	pl:          TileMapLayer,
-	wfc_base:    int,
-	furn_base:   int,
-	floor_index: int,
-	stair_fixed: Dictionary
+	fl:           TileMapLayer,
+	pl:           TileMapLayer,
+	hl:           TileMapLayer,
+	wfc_base:     int,
+	furn_base:    int,
+	hazard_base:  int,
+	floor_index:  int,
+	stair_fixed:  Dictionary
 ) -> void:
 	WfcRoomGenerator.generate(
 		hash([wfc_base, floor_index]),
@@ -212,13 +262,24 @@ func _generate_floor_single_room(
 		room_size,
 		_room_type_for_floor(floor_index)
 	)
+	var ph := HazardPass.generate(
+		hash([hazard_base, floor_index]),
+		fl, hl,
+		Vector2i.ZERO,
+		room_size,
+		_room_type_for_floor(floor_index)
+	)
+	if not ph.is_empty():
+		_placed_hazards[floor_index] = ph
 
 
 func _generate_floor_multi_room(
 	fl:          TileMapLayer,
 	pl:          TileMapLayer,
+	hl:          TileMapLayer,
 	wfc_base:    int,
 	furn_base:   int,
+	hazard_base: int,
 	floor_index: int,
 	stair_fixed: Dictionary
 ) -> void:
@@ -228,6 +289,8 @@ func _generate_floor_multi_room(
 		room_cols,
 		room_rows
 	)
+
+	var floor_placed: Array = []
 
 	for i in layout.rooms.size():
 		var room: RoomGraph.RoomData = layout.rooms[i]
@@ -253,6 +316,18 @@ func _generate_floor_multi_room(
 			room.size,
 			room.type
 		)
+
+		var ph := HazardPass.generate(
+			hash([hazard_base, floor_index, i]),
+			fl, hl,
+			room.origin,
+			room.size,
+			room.type
+		)
+		floor_placed.append_array(ph)
+
+	if not floor_placed.is_empty():
+		_placed_hazards[floor_index] = floor_placed
 
 	if not _validate_connectivity(fl, layout):
 		push_warning("BuildingGen: floor %d connectivity failed for seed %d" % [floor_index, building_seed])
@@ -296,6 +371,8 @@ func switch_floor(floor_index: int) -> void:
 		(_floor_layers[f] as TileMapLayer).visible = false
 	for f in _props_layers:
 		(_props_layers[f] as TileMapLayer).visible = false
+	for f in _hazards_layers:
+		(_hazards_layers[f] as TileMapLayer).visible = false
 
 	if not _floor_layers.has(floor_index):
 		push_warning("BuildingGen: floor %d has no layer" % floor_index)
@@ -303,6 +380,8 @@ func switch_floor(floor_index: int) -> void:
 
 	(_floor_layers[floor_index] as TileMapLayer).visible = true
 	(_props_layers[floor_index] as TileMapLayer).visible = true
+	if _hazards_layers.has(floor_index):
+		(_hazards_layers[floor_index] as TileMapLayer).visible = true
 
 	_active_floor = floor_index
 	floor_changed.emit(floor_index)
@@ -310,6 +389,11 @@ func switch_floor(floor_index: int) -> void:
 
 func get_active_floor() -> int:
 	return _active_floor
+
+
+# Returns all hazards placed on `floor_index` (Array[HazardPass.PlacedHazard]).
+func get_placed_hazards(floor_index: int) -> Array:
+	return _placed_hazards.get(floor_index, [])
 
 
 # Returns Vector2i positions of STAIR_UP tiles on `floor_index`.
@@ -419,8 +503,9 @@ func _store_to_cache(floor_indices: Array[int]) -> void:
 	var snapshots: Dictionary = {}
 	for f in floor_indices:
 		snapshots[f] = {
-			"floor": BuildingCache.snapshot_layer(_floor_layers[f]),
-			"props": BuildingCache.snapshot_layer(_props_layers[f]),
+			"floor":   BuildingCache.snapshot_layer(_floor_layers[f]),
+			"props":   BuildingCache.snapshot_layer(_props_layers[f]),
+			"hazards": BuildingCache.snapshot_layer(_hazards_layers[f]),
 		}
 	snapshots["_stair_pairs"] = _serialize_stair_pairs()
 	BuildingCache.store(cache_key(), snapshots)
@@ -437,8 +522,9 @@ func _restore_from_cache(floor_indices: Array[int]) -> void:
 		if not cached.has(f):
 			continue
 		var entry: Dictionary = cached[f]
-		BuildingCache.restore_layer(_floor_layers[f], entry.get("floor", []))
-		BuildingCache.restore_layer(_props_layers[f], entry.get("props", []))
+		BuildingCache.restore_layer(_floor_layers[f],   entry.get("floor",   []))
+		BuildingCache.restore_layer(_props_layers[f],   entry.get("props",   []))
+		BuildingCache.restore_layer(_hazards_layers[f], entry.get("hazards", []))
 
 	switch_floor(0)
 
@@ -471,6 +557,7 @@ func _deserialize_stair_pairs(data: Array) -> Array:
 func _ensure_dynamic_layers(floor_index: int) -> void:
 	var fl_name := "DynFloor_%d" % floor_index
 	var pr_name := "DynProps_%d" % floor_index
+	var hz_name := "DynHazards_%d" % floor_index
 
 	if not _floor_layers.has(floor_index):
 		var fl := _find_or_create_layer(fl_name)
@@ -479,6 +566,10 @@ func _ensure_dynamic_layers(floor_index: int) -> void:
 	if not _props_layers.has(floor_index):
 		var pl := _find_or_create_layer(pr_name)
 		_props_layers[floor_index] = pl
+
+	if not _hazards_layers.has(floor_index):
+		var hl := _find_or_create_layer(hz_name)
+		_hazards_layers[floor_index] = hl
 
 
 func _find_or_create_layer(layer_name: String) -> TileMapLayer:
@@ -554,5 +645,12 @@ func _get_floor_layer() -> TileMapLayer:
 func _get_props_layer() -> TileMapLayer:
 	for child in get_children():
 		if child is TileMapLayer and child.name == "PropsLayer":
+			return child
+	return null
+
+
+func _get_hazards_layer() -> TileMapLayer:
+	for child in get_children():
+		if child is TileMapLayer and child.name == "HazardsLayer":
 			return child
 	return null

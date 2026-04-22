@@ -52,4 +52,14 @@ enum RoomType {
 	BEDROOM,
 	BATHROOM,
 	LIVING_ROOM,
+	STORE,       # Goal room: the store the player is trying to reach
+}
+
+# Hazard varieties. Stored in HazardDef and HazardManager — drives trigger/consequence logic.
+enum HazardType {
+	NONE,
+	STOVE_FIRE,      # Kitchen — fire hazard near stove
+	FALL,            # Stairwell / open floor — player falls through gap
+	FALLING_OBJECT,  # Overhead — heavy object falls on timed trigger
+	ELECTROCUTION,   # Bathroom — electrical hazard near water
 }
