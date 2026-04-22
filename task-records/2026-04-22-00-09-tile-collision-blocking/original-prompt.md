@@ -1,0 +1,1 @@
+Lets change the collision of the tiles a little bit. If a tile includes a collidable object like a table, plant, or counter, the whole tile should be blocked perfectly with the edges of the tile. This should make collision detection and level planning a lot easier.

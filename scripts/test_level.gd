@@ -113,7 +113,7 @@ func _rebuild_room_layout(map_center: Vector2, tile_half_size: Vector2) -> void:
 		room_decor.add_child(sprite)
 
 		if item["collision"] != "":
-			room_collision.add_child(_build_collision_body(item["collision"], tile_center))
+			room_collision.add_child(_build_collision_body(tile_center, tile_half_size))
 
 
 func _build_atlas_texture(atlas_coords: Vector2i) -> AtlasTexture:
@@ -126,38 +126,19 @@ func _build_atlas_texture(atlas_coords: Vector2i) -> AtlasTexture:
 	return atlas
 
 
-func _build_collision_body(collision_kind: String, tile_center: Vector2) -> StaticBody2D:
+func _build_collision_body(tile_center: Vector2, tile_half_size: Vector2) -> StaticBody2D:
 	var body := StaticBody2D.new()
 	var shape_node := CollisionShape2D.new()
+	var shape := ConvexPolygonShape2D.new()
 	body.position = tile_center
 	body.add_child(shape_node)
-
-	match collision_kind:
-		"wall":
-			var shape := RectangleShape2D.new()
-			shape.size = Vector2(90.0, 26.0) * _scene_scale
-			shape_node.shape = shape
-			shape_node.position = Vector2(0.0, -18.0) * _scene_scale
-		"counter":
-			var shape := RectangleShape2D.new()
-			shape.size = Vector2(62.0, 30.0) * _scene_scale
-			shape_node.shape = shape
-			shape_node.position = Vector2(0.0, 8.0) * _scene_scale
-		"table":
-			var shape := CircleShape2D.new()
-			shape.radius = 20.0 * _scene_scale
-			shape_node.shape = shape
-			shape_node.position = Vector2(0.0, 10.0) * _scene_scale
-		"small_table":
-			var shape := CircleShape2D.new()
-			shape.radius = 15.0 * _scene_scale
-			shape_node.shape = shape
-			shape_node.position = Vector2(0.0, 10.0) * _scene_scale
-		"plant":
-			var shape := CircleShape2D.new()
-			shape.radius = 16.0 * _scene_scale
-			shape_node.shape = shape
-			shape_node.position = Vector2(0.0, 12.0) * _scene_scale
+	shape.points = PackedVector2Array([
+		Vector2(0.0, -tile_half_size.y),
+		Vector2(tile_half_size.x, 0.0),
+		Vector2(0.0, tile_half_size.y),
+		Vector2(-tile_half_size.x, 0.0),
+	])
+	shape_node.shape = shape
 
 	return body
 
