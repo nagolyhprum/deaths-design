@@ -32,3 +32,24 @@ enum Direction {
 	EAST = 2,
 	SOUTH = 3,
 }
+
+# Anchor rules for prop placement. Drives where a prop may be placed in a room.
+enum Anchor {
+	WALL_N,       # Against the north wall, facing south
+	WALL_S,       # Against the south wall, facing north
+	WALL_W,       # Against the west wall, facing east
+	WALL_E,       # Against the east wall, facing west
+	CORNER,       # In any interior corner
+	CENTER,       # Anywhere in the room interior (not wall-adjacent)
+	DOOR_ADJACENT,# Adjacent to a door tile
+}
+
+# Room type used for prop palette selection and room-type-weighted generation.
+enum RoomType {
+	GENERIC,
+	HALL,
+	KITCHEN,
+	BEDROOM,
+	BATHROOM,
+	LIVING_ROOM,
+}
