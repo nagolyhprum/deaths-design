@@ -7,9 +7,7 @@
 [node name="Main" type="Node2D" unique_id=1454161516]
 script = ExtResource("1_level_script")
 
-[node name="RoomDecor" type="Node2D" parent="." unique_id=967922161]
-
-[node name="RoomCollision" type="Node2D" parent="." unique_id=540594212]
+[node name="WorldGen" parent="." unique_id=155974679 instance=ExtResource("3_sugp2")]
 
 [node name="Player" parent="." unique_id=111774833 instance=ExtResource("2_player_scene")]
 
@@ -22,6 +20,4 @@ offset_right = 493.0
 offset_bottom = 76.0
 theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
-text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad\\nUp, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."
-
-[node name="WorldGen" parent="." unique_id=155974679 instance=ExtResource("3_sugp2")]
+text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad\nUp, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."

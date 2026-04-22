@@ -2,28 +2,30 @@
 class_name BuildingGen
 extends Node2D
 
-# Chunk 1 trivial generator: floor fill with a ring of walls. No WFC yet.
-# Replaced in Chunk 2 with the real tile-WFC generator.
-
-const FLOOR_SOURCE_ID := 9
-const FLOOR_ROW := 0
-const FLOOR_VARIANT_COUNT := 4
-
-const WALL_SOURCE_ID := 4
-const WALL_ROW := 0
+# Procedural building generator.
+#
+# Phase 1 (room_cols=1, room_rows=1): generates a single seeded room using
+# WfcRoomGenerator then runs FurniturePass on a dedicated props layer.
+#
+# Phase 2 (room_cols>1 or room_rows>1): generates a multi-room floor plan via
+# RoomGraph — each room gets its own WFC pass with door tiles as fixed constraints
+# so adjacent rooms are stitched at their shared wall. FurniturePass runs per room
+# using the room's assigned type. A flood-fill connectivity check validates the
+# result.
 
 @export var building_seed: int = 0
 @export var room_size: Vector2i = Vector2i(8, 8)
+@export var room_cols: int = 1
+@export var room_rows: int = 1
 
-@export_tool_button("Generate") var _generate_btn := generate
-@export_tool_button("Randomize Seed") var _randomize_btn := randomize_building_seed
+@export_tool_button("Generate")       var _generate_btn       := generate
+@export_tool_button("Randomize Seed") var _randomize_btn      := randomize_building_seed
 
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	# Skip self-generation when a WorldGen parent will orchestrate us. Otherwise
-	# (running this scene standalone) generate with whatever seed is set.
+	# Skip self-generation when WorldGen parent will orchestrate us.
 	if get_parent() is WorldGen:
 		return
 	generate()
@@ -35,44 +37,152 @@ func randomize_building_seed() -> void:
 
 
 func generate() -> void:
-	var layer := _get_tile_map_layer()
-	if layer == null:
-		push_warning("BuildingGen: expected a TileMapLayer child")
+	var floor_layer := _get_floor_layer()
+	if floor_layer == null:
+		push_warning("BuildingGen: expected a TileMapLayer child (floor)")
 		return
-	layer.clear()
+
+	var props_layer := _get_props_layer()
+
+	floor_layer.clear()
+	if props_layer != null:
+		props_layer.clear()
 
 	var streams := RngStreams.new(building_seed)
-	var floor_rng := streams.stream("floor_variants")
 
-	var max_x := room_size.x - 1
-	var max_y := room_size.y - 1
-	for y in range(room_size.y):
-		for x in range(room_size.x):
-			var cell := Vector2i(x, y)
-			var wall_dir := _wall_direction(x, y, max_x, max_y)
-			if wall_dir != -1:
-				layer.set_cell(cell, WALL_SOURCE_ID, Vector2i(wall_dir, WALL_ROW))
-			else:
-				var variant: int = floor_rng.randi() % FLOOR_VARIANT_COUNT
-				layer.set_cell(cell, FLOOR_SOURCE_ID, Vector2i(variant, FLOOR_ROW))
+	if room_cols > 1 or room_rows > 1:
+		_generate_multi_room(floor_layer, props_layer, streams)
+	else:
+		_generate_single_room(floor_layer, props_layer, streams)
 
 
-# Returns the atlas x-coord of the wall direction at this cell, or -1 if the
-# cell is interior. Direction index follows TileMeta.Direction (N=0, W=1, E=2, S=3).
-func _wall_direction(x: int, y: int, max_x: int, max_y: int) -> int:
-	if y == 0:
-		return TileMeta.Direction.NORTH
-	if y == max_y:
-		return TileMeta.Direction.SOUTH
-	if x == 0:
-		return TileMeta.Direction.WEST
-	if x == max_x:
-		return TileMeta.Direction.EAST
-	return -1
+# ── Single-room (Phase 1) ─────────────────────────────────────────────────────
+
+func _generate_single_room(
+	floor_layer: TileMapLayer,
+	props_layer: TileMapLayer,
+	streams: RngStreams
+) -> void:
+	WfcRoomGenerator.generate(
+		streams.derive_seed("wfc"),
+		floor_layer,
+		Vector2i.ZERO,
+		room_size
+	)
+
+	if props_layer != null:
+		FurniturePass.generate(
+			streams.derive_seed("furniture"),
+			floor_layer,
+			props_layer,
+			Vector2i.ZERO,
+			room_size,
+			TileMeta.RoomType.GENERIC
+		)
 
 
-func _get_tile_map_layer() -> TileMapLayer:
+# ── Multi-room (Phase 2) ──────────────────────────────────────────────────────
+
+func _generate_multi_room(
+	floor_layer: TileMapLayer,
+	props_layer: TileMapLayer,
+	streams: RngStreams
+) -> void:
+	var layout := RoomGraph.generate(
+		streams.derive_seed("layout"),
+		room_size,
+		room_cols,
+		room_rows
+	)
+
+	var wfc_base    := streams.derive_seed("wfc")
+	var furn_base   := streams.derive_seed("furniture")
+
+	for i in layout.rooms.size():
+		var room: RoomGraph.RoomData = layout.rooms[i]
+		var constraints := layout.door_constraints_for(i)
+
+		WfcRoomGenerator.generate(
+			hash([wfc_base, i]),
+			floor_layer,
+			room.origin,
+			room.size,
+			constraints
+		)
+
+		if props_layer != null:
+			FurniturePass.generate(
+				hash([furn_base, i]),
+				floor_layer,
+				props_layer,
+				room.origin,
+				room.size,
+				room.type
+			)
+
+	if not _validate_connectivity(floor_layer, layout):
+		push_warning("BuildingGen: connectivity check failed for seed %d" % building_seed)
+
+
+func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> bool:
+	# Flood-fill from the first room's interior; all walkable cells should be reachable.
+	if layout.rooms.is_empty():
+		return true
+
+	var first_room: RoomGraph.RoomData = layout.rooms[0]
+	var spawn := first_room.origin + Vector2i(1, 1)
+	if first_room.size.x <= 2 or first_room.size.y <= 2:
+		return true
+
+	var bounds := layout.footprint()
+	var visited: Array[Vector2i] = []
+	var queue: Array[Vector2i] = [spawn]
+	var walkable_total := 0
+
+	# Count all walkable cells
+	for room in layout.rooms:
+		var r: RoomGraph.RoomData = room
+		for y in r.size.y:
+			for x in r.size.x:
+				var cell := r.origin + Vector2i(x, y)
+				var src := floor_layer.get_cell_source_id(cell)
+				if src != -1 and src != WfcRoomGenerator.WALL_SOURCE_ID:
+					walkable_total += 1
+
+	# Flood-fill
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		if cell in visited:
+			continue
+		if not bounds.has_point(cell):
+			continue
+		var src := floor_layer.get_cell_source_id(cell)
+		if src == -1 or src == WfcRoomGenerator.WALL_SOURCE_ID:
+			continue
+		visited.append(cell)
+		queue.append(cell + Vector2i(1, 0))
+		queue.append(cell + Vector2i(-1, 0))
+		queue.append(cell + Vector2i(0, 1))
+		queue.append(cell + Vector2i(0, -1))
+
+	return visited.size() >= walkable_total
+
+
+# ── Node helpers ──────────────────────────────────────────────────────────────
+
+func _get_floor_layer() -> TileMapLayer:
+	for child in get_children():
+		if child is TileMapLayer and child.name == "TileMapLayer":
+			return child
+	# Fallback: first TileMapLayer child
 	for child in get_children():
 		if child is TileMapLayer:
+			return child
+	return null
+
+
+func _get_props_layer() -> TileMapLayer:
+	for child in get_children():
+		if child is TileMapLayer and child.name == "PropsLayer":
 			return child
 	return null
