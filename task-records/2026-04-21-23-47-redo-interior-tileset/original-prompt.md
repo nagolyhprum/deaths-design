@@ -1,0 +1,1 @@
+I want you to redo the interior tileset. I will give you a bit more guidance. I need 3 wall variants, upper left, upper right, and upper left right corner. Each variant should have an option with a door, window, or picture frame except for the corner. All of the other furniture look great eg the plant, tables, and counter
