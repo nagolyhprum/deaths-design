@@ -1,9 +1,11 @@
-[gd_scene format=3 uid="uid://50pyd26mk7p3"]
+[gd_scene load_steps=4 format=3 uid="uid://50pyd26mk7p3"]
 
 [ext_resource type="PackedScene" uid="uid://dqsmwkr1bp30s" path="res://scenes/building_gen.tscn" id="1_syqki"]
 [ext_resource type="TileSet" uid="uid://b5pasaea7w228" path="res://assets/tiles/outdoor_tiles.tres" id="2_v8aan"]
+[ext_resource type="Script" path="res://scripts/world_gen.gd" id="3_wrldg"]
 
-[node name="Node2D" type="Node2D" unique_id=155974679]
+[node name="WorldGen" type="Node2D" unique_id=155974679]
+script = ExtResource("3_wrldg")
 
 [node name="BuildingGen" parent="." unique_id=1252004849 instance=ExtResource("1_syqki")]
 
