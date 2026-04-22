@@ -82,14 +82,23 @@ Multi-pass procedural generation of multi-floor buildings:
 - [ ] "Active building" ownership: `world_gen` toggles which building's floor is live — deferred to Phase 3
 - [x] Camera follows player — Camera2D child added to `player.tscn`
 
-### Phase 3 — Multi-floor + basements
+### Phase 3 — Multi-floor + basements *(complete as of 2026-04-22)*
 
-- [ ] Additional per-floor `TileMapLayer` children inside `building_gen`
-- [ ] Stair tiles placed as fixed constraints in tier 1 before WFC runs
-- [ ] Floor switching: enable active layer, disable others (visibility + collision) on stair use
-- [ ] Basements as negative-indexed floor layers, same generator with different room-type weights
-- [ ] Reachability guarantee: every floor accessible from spawn
-- [ ] Per-seed building cache so deaths don't trigger regeneration
+> ⚠️ **MANUAL EDITOR STEP REQUIRED — stair tiles must be authored in the Godot editor:**
+>
+> 1. **⚠️ MANUAL EDITOR STEP REQUIRED — Add STAIR_UP tile** to the TileSet with source ID 30. The code in `wfc_room_generator.gd` (`STAIR_UP_SOURCE_ID = 30`) references this ID. Create the tile atlas entry and assign the correct visual in the TileSet editor.
+> 2. **⚠️ MANUAL EDITOR STEP REQUIRED — Add STAIR_DOWN tile** to the TileSet with source ID 31 (`STAIR_DOWN_SOURCE_ID = 31`). Same process as above.
+> 3. **⚠️ MANUAL EDITOR STEP REQUIRED — Wire stair trigger** in the game scene: connect the `floor_changed(new_floor)` signal from `BuildingGen` to the player node (or a coordinator) and teleport the player to the stair destination position on the new floor. The API is: `get_stair_up_positions(floor)`, `get_stair_down_positions(floor)`, `switch_floor(index)`, `get_floor_above(floor)`, `get_floor_below(floor)`.
+>
+> All code infrastructure is in place. Source IDs 30 and 31 are placeholders — update `STAIR_UP_SOURCE_ID` and `STAIR_DOWN_SOURCE_ID` in `wfc_room_generator.gd` if your TileSet uses different IDs.
+
+- [x] Additional per-floor `TileMapLayer` children inside `building_gen` — created dynamically as `DynFloor_<n>` / `DynProps_<n>` nodes; keyed in `_floor_layers` / `_props_layers` dictionaries
+- [x] Stair tiles placed as fixed constraints in tier 1 before WFC runs — `scripts/stair_placer.gd` picks one interior stair position per adjacent floor pair; `building_gen._stair_constraints_for_floor()` converts to WFC fixed constraints
+- [x] Floor switching: enable active layer, disable others (visibility + collision) on stair use — `BuildingGen.switch_floor(floor_index)` toggles `visible` on all dynamic layers; emits `floor_changed(new_floor)`
+- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Wire player teleport on `floor_changed` signal in the game scene; stair tile visuals must be authored in TileSet (source IDs 30/31)
+- [x] Basements as negative-indexed floor layers, same generator with different room-type weights — `has_basement: bool` export adds floor index -1; `_get_floor_indices()` prepends -1; basement uses `RoomType.GENERIC` (weight biasing deferred to when basement-specific room types exist)
+- [x] Reachability guarantee: every floor accessible from spawn — `_validate_multifloor_reachability()` flood-fills from each floor's first interior cell to all its stair positions; warns on failure
+- [x] Per-seed building cache so deaths don't trigger regeneration — `scripts/building_cache.gd` keyed by `hash([seed, num_floors, has_basement])`; `generate()` restores from cache on hit; `BuildingCache.clear()` on new game
 
 ### Phase 4 — Hazards
 
@@ -129,3 +138,4 @@ Multi-pass procedural generation of multi-floor buildings:
 - *2026-04-22* — Furniture pass added as a dedicated third generation step (post-WFC). Two tracks — single-cell prop tiles on a `props` TileMapLayer, and prefab scenes for multi-cell/animated props. Walkability flood-fill validates each pass. Hazards become a prop subtype in Phase 4, riding the same pipeline. Phase 1 includes a minimal furniture pass (1–2 props) to exercise the whole pipeline end-to-end.
 - *2026-04-22* — Phase 1 completed (code). Missing items deferred to editor authoring session: TileSet custom data layers, collision shapes per tile, prop tile assets. `wfc_room_generator.gd`, `furniture_pass.gd` written; `building_gen.gd` updated to use both; `PropsLayer` added to `building_gen.tscn`; seed persistence added to `world_gen.gd`; `ROOM_LAYOUT` removed from `test_level.gd`.
 - *2026-04-22* — Phase 2 implemented (code). `room_graph.gd` generates grid-based floor plans with RoomType assignment and door constraints. `building_gen.gd` runs per-room WFC with door stitching and flood-fill connectivity validation. Camera2D child added to `player.tscn`. Prop palettes and outdoor routing remain stubs pending tile assets.
+- *2026-04-22* — Phase 3 implemented (code). `stair_placer.gd` picks one interior stair position per adjacent floor pair. `building_gen.gd` extended with `num_floors`, `has_basement`, `switch_floor()`, `floor_changed` signal, and cross-floor reachability validation. `building_cache.gd` added for per-seed tile caching. `wfc_room_generator.gd` extended with `STAIR_UP_SOURCE_ID = 30` and `STAIR_DOWN_SOURCE_ID = 31` placeholder constants and catalog entries. Manual editor steps remain: stair tile assets (source IDs 30/31) and player teleport wiring on `floor_changed`.
