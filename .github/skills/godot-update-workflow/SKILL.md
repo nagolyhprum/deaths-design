@@ -37,7 +37,8 @@ For relevant project-update prompts, follow this sequence:
 4. **Capture the request.** In that folder, add one file containing the original user prompt.
 5. **Capture extra written context.** In that folder, add a second file containing related notes, rationale, or other text output that should be preserved even if it is not directly represented by project files.
 6. **Implement the requested changes.**
-7. **Commit and push.** After the task files and project changes are ready, commit the full project state and push it to GitHub.
+7. **Test the changes and fix any issues.**
+8. **Commit and push.** After the task files and project changes are ready, commit the full project state and push it to GitHub.
 
 # Implementation guidance
 
@@ -50,6 +51,8 @@ For relevant project-update prompts, follow this sequence:
 # Record-keeping guidance
 
 Unless the user asks for a different location, place timestamped task folders in a dedicated repository directory such as `task-records/` so they stay easy to review.
+
+If asked to generate an image asset, use Pillow and save the Python script used to generate the asset in the same related task-record folder for future reference.
 
 Recommended filenames inside each timestamped folder:
 
