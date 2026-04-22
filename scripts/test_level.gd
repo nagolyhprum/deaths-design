@@ -112,7 +112,7 @@ func _rebuild_room_layout(map_center: Vector2, tile_half_size: Vector2) -> void:
 		sprite.scale = Vector2.ONE * _scene_scale
 		room_decor.add_child(sprite)
 
-		if item["collision"] != "":
+		if item["collision"] != "" and item["collision"] != "wall":
 			room_collision.add_child(_build_collision_body(tile_center, tile_half_size))
 
 
