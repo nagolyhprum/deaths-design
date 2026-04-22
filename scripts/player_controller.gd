@@ -10,6 +10,7 @@ const WALK_FRAMES := [0, 1, 2, 1]
 
 var _animation_time := 0.0
 var _facing_row := 0
+var _scene_scale := 1.0
 
 
 func _physics_process(delta: float) -> void:
@@ -17,7 +18,7 @@ func _physics_process(delta: float) -> void:
 	var is_moving := raw_input != Vector2.ZERO
 
 	if is_moving:
-		velocity = raw_input.normalized() * move_speed
+		velocity = raw_input.normalized() * move_speed * _scene_scale
 		_facing_row = _facing_row_from_input(raw_input)
 		_animation_time += delta * animation_fps
 	else:
@@ -54,8 +55,8 @@ func _facing_row_from_input(input_vector: Vector2) -> int:
 
 
 func _clamp_to_viewport() -> void:
-	var viewport_size := get_viewport_rect().size
-	global_position = global_position.clamp(play_area_margin, viewport_size - play_area_margin)
+	var play_area := get_play_area_rect(get_viewport_rect().size)
+	set_position_ratio(play_area, get_position_ratio(play_area))
 
 
 func _update_sprite(is_moving: bool) -> void:
@@ -63,3 +64,37 @@ func _update_sprite(is_moving: bool) -> void:
 	if is_moving:
 		frame = WALK_FRAMES[int(_animation_time) % WALK_FRAMES.size()]
 	sprite.frame_coords = Vector2i(frame, _facing_row)
+
+
+func set_scene_scale(scene_scale: float) -> void:
+	_scene_scale = max(scene_scale, 0.25)
+	scale = Vector2.ONE * _scene_scale
+
+
+func get_play_area_margin() -> Vector2:
+	return play_area_margin * _scene_scale
+
+
+func get_play_area_rect(viewport_size: Vector2) -> Rect2:
+	var margin := get_play_area_margin()
+	return Rect2(
+		margin,
+		Vector2(
+			max(viewport_size.x - margin.x * 2.0, 1.0),
+			max(viewport_size.y - margin.y * 2.0, 1.0)
+		)
+	)
+
+
+func get_position_ratio(play_area: Rect2) -> Vector2:
+	return Vector2(
+		clampf((global_position.x - play_area.position.x) / play_area.size.x, 0.0, 1.0),
+		clampf((global_position.y - play_area.position.y) / play_area.size.y, 0.0, 1.0)
+	)
+
+
+func set_position_ratio(play_area: Rect2, ratio: Vector2) -> void:
+	global_position = play_area.position + play_area.size * Vector2(
+		clampf(ratio.x, 0.0, 1.0),
+		clampf(ratio.y, 0.0, 1.0)
+	)
