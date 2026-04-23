@@ -22,19 +22,37 @@ const SAVE_PATH := "user://worldgen.cfg"
 
 const OUTDOOR_FLOOR_SOURCE_ID := 0   # fallback; update when outdoor_tiles is authored
 const OUTDOOR_FLOOR_ATLAS     := Vector2i(0, 0)
+const TILE_SIZE = Vector2i(256, 128)
 
 @export var world_seed: int = 0
+
+# Both expected to be building_gen.tscn (or a variant).
+@export_group("Generation Params")
+@export var world_size:     Vector2i = Vector2i(8, 8)
+@export_group("Player & Goal")
+@export var player:               Player
+@export var start_building_scene: BuildingGen
+@export var goal_building_scene:  BuildingGen
+
 
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_world_seed
 
 # Emitted when the goal (Store) building is identified during generation.
+@warning_ignore("unused_signal")
 signal goal_building_changed(building: BuildingGen)
 
 # The building the player must reach (assigned during generate()).
 var goal_building: BuildingGen = null
 # The building where the player starts (first BuildingGen child).
 var spawn_building: BuildingGen = null
+# Extras spawned by _place_extras; freed on the next generate().
+var _extra_buildings: Array[BuildingGen] = []
+# Footprints (in world-tile coords) of every placed building this generation,
+# used to reject overlapping placements.
+var _occupied_rects: Array[Rect2i] = []
+
+const INVALID_POS := Vector2i(-32768, -32768)
 
 
 func _ready() -> void:
@@ -52,44 +70,128 @@ func randomize_world_seed() -> void:
 
 
 func generate() -> void:
+	if start_building_scene == null:
+		push_warning("WorldGen: start_building_scene is not assigned")
+		return
+	if goal_building_scene == null:
+		push_warning("WorldGen: goal_building_scene is not assigned")
+		return
+
+	_clear_extras()
+	_occupied_rects.clear()
+
 	var streams := RngStreams.new(world_seed)
-	var arch_rng := streams.stream("archetypes")
 
-	# Collect all BuildingGen nodes anywhere in the scene.
-	var buildings: Array[BuildingGen] = []
-	for node in find_children("*", "BuildingGen", true, false):
-		buildings.append(node as BuildingGen)
+	# Step 1: place the start.
+	_place_building(start_building_scene, streams.stream("start"), 6, 10)
+	# Step 2: place the goal, keeping it at least half the shorter world
+	#         dimension away from the start and not overlapping its footprint.
+	@warning_ignore("integer_division")
+	var min_endpoint_dist := mini(world_size.x, world_size.y) / 2
+	_place_building(
+		goal_building_scene, streams.stream("goal"), 6, 10,
+		_grid_pos(start_building_scene), min_endpoint_dist
+	)
+	# Step 3: fill the world with a handful of extra random buildings.
+	_place_extras(streams.stream("extras"))
 
-	# Assign archetypes and seeds. First building = spawn, last = goal (STORE).
-	for i in buildings.size():
-		var building: BuildingGen = buildings[i]
-		building.building_seed = streams.derive_seed("building", i)
 
-		if buildings.size() == 1:
-			# Single-building mode: it is both spawn and destination.
-			building.archetype = BuildingArchetype.ArchetypeID.HOUSE
-			building.is_goal   = false
-		elif i == buildings.size() - 1:
-			# Last building is always the STORE goal.
-			building.archetype = BuildingArchetype.ArchetypeID.STORE
-			building.is_goal   = true
-		else:
-			building.archetype = _pick_archetype(arch_rng, i)
-			building.is_goal   = false
+# Picks a room size, finds a non-overlapping world position, applies everything
+# to the building, and calls generate(). Returns true on success.
+func _place_building(
+	b:          BuildingGen,
+	rng:        RandomNumberGenerator,
+	min_dim:    int,
+	max_dim:    int,
+	avoid:      Vector2i = INVALID_POS,
+	avoid_dist: int      = 0
+) -> bool:
+	var size := Vector2i(rng.randi_range(min_dim, max_dim), rng.randi_range(min_dim, max_dim))
+	var pos := _find_free_position(rng, size, avoid, avoid_dist)
+	if pos == INVALID_POS:
+		push_warning("WorldGen: no free position for building with size %s" % size)
+		return false
 
-		building.generate()
+	b.room_size = size
+	b.building_seed = rng.randi()
+	b.global_position = Vector2(pos * TILE_SIZE)
+	_occupied_rects.append(_footprint(pos, size))
+	b.generate()
+	return true
 
-	# Track spawn and goal references.
-	spawn_building = buildings[0] if not buildings.is_empty() else null
-	goal_building  = null
-	for b in buildings:
-		if b.is_goal:
-			goal_building = b
-			break
-	if goal_building != null:
-		goal_building_changed.emit(goal_building)
 
-	_generate_outdoor(streams, buildings)
+func _find_free_position(
+	rng:        RandomNumberGenerator,
+	size:       Vector2i,
+	avoid:      Vector2i,
+	avoid_dist: int,
+	max_attempts: int = 64
+) -> Vector2i:
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	for attempt in max_attempts:
+		var pos := _random_world_pos(rng, half)
+		if avoid_dist > 0 and pos.distance_to(avoid) < avoid_dist:
+			continue
+		if _overlaps_any(_footprint(pos, size)):
+			continue
+		return pos
+	return INVALID_POS
+
+
+# Footprint of a building centered at `pos` with the given interior room size.
+# Includes the 1-tile wall border BuildingGen draws around the room.
+func _footprint(pos: Vector2i, size: Vector2i) -> Rect2i:
+	@warning_ignore("integer_division")
+	return Rect2i(pos - size / 2 - Vector2i.ONE, size + Vector2i(2, 2))
+
+
+func _overlaps_any(rect: Rect2i) -> bool:
+	for r in _occupied_rects:
+		if rect.intersects(r):
+			return true
+	return false
+
+
+func _grid_pos(b: BuildingGen) -> Vector2i:
+	return Vector2i(
+		roundi(b.global_position.x / TILE_SIZE.x),
+		roundi(b.global_position.y / TILE_SIZE.y),
+	)
+
+
+func _place_extras(rng: RandomNumberGenerator) -> void:
+	var scene_path: String = start_building_scene.scene_file_path
+	if scene_path.is_empty():
+		push_warning("WorldGen: start_building_scene has no scene_file_path; cannot spawn extras")
+		return
+	var scene := load(scene_path) as PackedScene
+	if scene == null:
+		return
+
+	var count := rng.randi_range(3, 6)
+	for i in count:
+		var extra: BuildingGen = scene.instantiate() as BuildingGen
+		add_child(extra)
+		_extra_buildings.append(extra)
+		# Extras can be as small as 2x2; floor set by user request.
+		if not _place_building(extra, rng, 2, 8):
+			extra.queue_free()
+			_extra_buildings.pop_back()
+
+
+func _clear_extras() -> void:
+	for b in _extra_buildings:
+		if is_instance_valid(b):
+			b.queue_free()
+	_extra_buildings.clear()
+
+
+func _random_world_pos(rng: RandomNumberGenerator, half: Vector2i) -> Vector2i:
+	return Vector2i(
+		rng.randi_range(-half.x, half.x - 1),
+		rng.randi_range(-half.y, half.y - 1),
+	)
 
 
 # ── Archetype selection ───────────────────────────────────────────────────────

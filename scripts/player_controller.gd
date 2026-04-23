@@ -1,3 +1,4 @@
+class_name Player
 extends CharacterBody2D
 
 const WALK_FRAMES := [0, 1, 2, 1]

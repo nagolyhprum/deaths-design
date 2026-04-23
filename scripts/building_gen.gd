@@ -26,6 +26,7 @@ extends Node2D
 # generation to enable the runtime trigger→warning→consequence→reset flow.
 
 @export var building_seed: int = 0
+@export_group("Generation Params")
 @export var room_size:     Vector2i = Vector2i(8, 8)
 @export var room_cols:     int = 1
 @export var room_rows:     int = 1
@@ -37,6 +38,7 @@ extends Node2D
 # When true this building is the player's goal (the Store the player must reach).
 @export var is_goal:       bool = false
 
+@export_group("TileMapLayers")
 @export var floor_layer: TileMapLayer
 # Walls, windows, and doors all share this layer so they Y-sort together.
 @export var wall_layer:  TileMapLayer
