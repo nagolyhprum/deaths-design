@@ -14,6 +14,7 @@ enum Category {
 	HAZARD,
 	STAIR_UP,
 	STAIR_DOWN,
+	WINDOW
 }
 
 enum Socket {

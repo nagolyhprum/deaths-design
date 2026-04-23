@@ -56,11 +56,10 @@ func generate() -> void:
 	var streams := RngStreams.new(world_seed)
 	var arch_rng := streams.stream("archetypes")
 
-	# Collect all BuildingGen children in scene order.
+	# Collect all BuildingGen nodes anywhere in the scene.
 	var buildings: Array[BuildingGen] = []
-	for child in get_children():
-		if child is BuildingGen:
-			buildings.append(child as BuildingGen)
+	for node in find_children("*", "BuildingGen", true, false):
+		buildings.append(node as BuildingGen)
 
 	# Assign archetypes and seeds. First building = spawn, last = goal (STORE).
 	for i in buildings.size():

@@ -55,8 +55,8 @@ Multi-pass procedural generation of multi-floor buildings:
 - [x] Delete `ROOM_LAYOUT` constant and its iteration in `test_level.gd`
 - [x] Replace `test_level.gd` / `test_level.tscn` with `building_gen.gd` / `building_gen.tscn` (and `world_gen` as its parent)
 - [x] Add `TileMeta` autoload (`scripts/tile_meta.gd`) with `Category`, `Socket`, `Direction`, `Anchor`, and `RoomType` enums
-- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Configure the interior TileSet: isometric mode, collision shapes per tile, custom data layers (`category`, `socket_n/e/s/w`, `weight`) — **must be done in the Godot editor; see note above**
-- [ ] ⚠️ MANUAL EDITOR STEP REQUIRED — Hand-author category + socket + weight values for every tile in the existing sheet — **must be done in the Godot editor; see note above**
+- [x] ⚠️ MANUAL EDITOR STEP REQUIRED — Configure the interior TileSet: isometric mode, collision shapes per tile, custom data layers (`category`, `socket_n/e/s/w`, `weight`) — **must be done in the Godot editor; see note above**
+- [x] ⚠️ MANUAL EDITOR STEP REQUIRED — Hand-author category + socket + weight values for every tile in the existing sheet — **must be done in the Godot editor; see note above**
 - [x] `scripts/rng_streams.gd`: helper for splitting a seed into named sub-streams
 - [x] `scripts/wfc_room_generator.gd`: pure `generate(seed, tile_map_layer, origin, size, fixed_constraints)` → populates the layer; bounded retry + fallback tile on contradiction; fixed-constraint API for door stitching (Phase 2)
 - [x] `building_gen.gd`: `@tool`, exported `building_seed: int`, `room_cols`, `room_rows`, `@export_tool_button("Generate")`, `@export_tool_button("Randomize Seed")`; calls WFC then FurniturePass
