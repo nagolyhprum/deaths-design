@@ -82,6 +82,7 @@ var _placed_hazards: Dictionary = {}  # floor_index (int) -> Array[HazardPass.Pl
 
 
 func _ready() -> void:
+	add_to_group(&"building_gens")
 	if Engine.is_editor_hint():
 		return
 	if get_parent() is WorldGen:

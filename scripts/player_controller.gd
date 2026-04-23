@@ -14,6 +14,10 @@ const MOVE_INPUT_DEADZONE := 0.2
 
 @onready var sprite: Sprite2D = $Sprite2D
 
+const _DOOR_NEIGHBOR_OFFSETS: Array[Vector2i] = [
+	Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+]
+
 var _animation_time := 0.0
 var _facing_row := 0
 var _scene_scale := 1.0
@@ -21,6 +25,11 @@ var _map_center := Vector2.ZERO
 var _map_half_tile_size := Vector2.ONE
 var _map_radius := 0.0
 var _has_map_bounds := false
+
+# Tracks the door currently held open by the player's overlap with a trigger
+# cell. Null when no trigger is overlapped. Checked every physics frame.
+var _open_door_building: BuildingGen = null
+var _open_door_cell: Vector2i = Vector2i.ZERO
 
 
 func _physics_process(delta: float) -> void:
@@ -38,6 +47,69 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	_update_sprite(is_moving)
+	_update_door_triggers()
+
+
+func _update_door_triggers() -> void:
+	# Scan every BuildingGen. We consider the door "active" when the player's
+	# cell is either an inside/outside trigger (neighbor of a door) OR the door
+	# cell itself — the middle case happens as the player walks through the door
+	# and would otherwise cause a one-frame flicker between the two triggers.
+	var hit_building: BuildingGen = null
+	var hit_door_cell := Vector2i.ZERO
+	for node in get_tree().get_nodes_in_group(&"building_gens"):
+		var b := node as BuildingGen
+		if b == null or b.triggers_layer == null or b.wall_layer == null:
+			continue
+		var cell: Vector2i = b.triggers_layer.local_to_map(b.triggers_layer.to_local(global_position))
+		var trigger_src := b.triggers_layer.get_cell_source_id(cell)
+		var wall_src := b.wall_layer.get_cell_source_id(cell)
+
+		var door_cell := Vector2i.MAX
+		if trigger_src == BuildingGen.INSIDE_DOOR_TRIGGER_SOURCE_ID or trigger_src == BuildingGen.OUTSIDE_DOOR_TRIGGER_SOURCE_ID:
+			door_cell = _find_adjacent_door(b.wall_layer, cell)
+		elif wall_src == BuildingGen.DOOR_SOURCE_ID or wall_src == BuildingGen.DOOR_OPEN_SOURCE_ID:
+			door_cell = cell
+
+		if door_cell == Vector2i.MAX:
+			continue
+		hit_building = b
+		hit_door_cell = door_cell
+		break
+
+	if hit_building == _open_door_building and hit_door_cell == _open_door_cell:
+		return  # no transition
+
+	# Close the previously-open door, if any.
+	if _open_door_building != null and is_instance_valid(_open_door_building):
+		_set_door_source(_open_door_building, _open_door_cell, BuildingGen.DOOR_SOURCE_ID)
+	# Open the newly-overlapped door, if any.
+	if hit_building != null:
+		_set_door_source(hit_building, hit_door_cell, BuildingGen.DOOR_OPEN_SOURCE_ID)
+
+	_open_door_building = hit_building
+	_open_door_cell = hit_door_cell
+
+
+func _find_adjacent_door(wall_layer: TileMapLayer, cell: Vector2i) -> Vector2i:
+	for offset in _DOOR_NEIGHBOR_OFFSETS:
+		var neighbor := cell + offset
+		var src := wall_layer.get_cell_source_id(neighbor)
+		if src == BuildingGen.DOOR_SOURCE_ID or src == BuildingGen.DOOR_OPEN_SOURCE_ID:
+			return neighbor
+	return Vector2i.MAX
+
+
+func _set_door_source(b: BuildingGen, cell: Vector2i, source_id: int) -> void:
+	var atlas := b.wall_layer.get_cell_atlas_coords(cell)
+	b.wall_layer.set_cell(cell, source_id, atlas)
+	# Mirror the door onto triggers_layer while open so it stays visually open
+	# regardless of what wall_layer later redraws; clear it on close.
+	if b.triggers_layer != null:
+		if source_id == BuildingGen.DOOR_OPEN_SOURCE_ID:
+			b.triggers_layer.set_cell(cell, source_id, atlas)
+		else:
+			b.triggers_layer.erase_cell(cell)
 
 
 func _read_input_vector() -> Vector2:
