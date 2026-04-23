@@ -33,8 +33,10 @@ const TILE_SIZE = Vector2i(256, 128)
 @export var player:               Player
 @export var start_building_scene: BuildingGen
 @export var goal_building_scene:  BuildingGen
+@export var world_layer: TileMapLayer
 
 
+@export_group("Debug")
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_world_seed
 
@@ -80,6 +82,9 @@ func generate() -> void:
 	_clear_extras()
 	_occupied_rects.clear()
 
+	start_building_scene.is_goal = false
+	goal_building_scene.is_goal = true
+
 	var streams := RngStreams.new(world_seed)
 
 	# Step 1: place the start.
@@ -94,6 +99,9 @@ func generate() -> void:
 	)
 	# Step 3: fill the world with a handful of extra random buildings.
 	_place_extras(streams.stream("extras"))
+	# Step 4: drop the player at the centre of the start building.
+	if player != null:
+		player.global_position = start_building_scene.global_position
 
 
 # Picks a room size, finds a non-overlapping world position, applies everything
@@ -172,6 +180,7 @@ func _place_extras(rng: RandomNumberGenerator) -> void:
 	var count := rng.randi_range(3, 6)
 	for i in count:
 		var extra: BuildingGen = scene.instantiate() as BuildingGen
+		extra.is_goal = false
 		add_child(extra)
 		_extra_buildings.append(extra)
 		# Extras can be as small as 2x2; floor set by user request.

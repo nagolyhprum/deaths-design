@@ -1,11 +1,45 @@
 [gd_resource type="TileSet" format=3 uid="uid://cl2dfs5v10g8d"]
 
 [ext_resource type="Texture2D" uid="uid://ccdftvyh88q1o" path="res://assets/tiles/door_closed.png" id="1_dogah"]
+[ext_resource type="Texture2D" uid="uid://b01dwn8nnbves" path="res://switch_wall_off.png" id="1_my0ap"]
 [ext_resource type="Texture2D" uid="uid://0k12msni15u0" path="res://assets/tiles/walls.png" id="1_slhwc"]
 [ext_resource type="Texture2D" uid="uid://dq7tjoo44t80y" path="res://assets/tiles/floors.png" id="2_6chfy"]
 [ext_resource type="Texture2D" uid="uid://dudjq6dy4mj33" path="res://assets/tiles/door_open.png" id="2_bvrp0"]
+[ext_resource type="Texture2D" uid="uid://b22kklwtdcwwj" path="res://switch_wall_on.png" id="2_d8oar"]
 [ext_resource type="Texture2D" uid="uid://onefrxg5tpcg" path="res://assets/tiles/window.png" id="3_k55yp"]
 [ext_resource type="Texture2D" uid="uid://bn2gcjb37ctiv" path="res://columnCorners.png" id="5_bvrp0"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_gsxl0"]
+texture = ExtResource("1_my0ap")
+texture_region_size = Vector2i(256, 512)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 192)
+0:0/0/z_index = 2
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, 192)
+1:0/0/z_index = 2
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, 192)
+2:0/0/z_index = 2
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, 192)
+3:0/0/z_index = 2
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_laf5l"]
+texture = ExtResource("2_d8oar")
+texture_region_size = Vector2i(256, 512)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 192)
+0:0/0/z_index = 2
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, 192)
+1:0/0/z_index = 2
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, 192)
+2:0/0/z_index = 2
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, 192)
+3:0/0/z_index = 2
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_my0ap"]
 texture = ExtResource("1_dogah")
@@ -199,4 +233,6 @@ sources/22 = SubResource("TileSetAtlasSource_my0ap")
 sources/23 = SubResource("TileSetAtlasSource_d8oar")
 sources/24 = SubResource("TileSetAtlasSource_qabqt")
 sources/5 = SubResource("TileSetAtlasSource_k55yp")
-tile_proxies/coords_level = [[0, Vector2i(0, 0)], [4, Vector2i(0, 0)], [0, Vector2i(0, 2)], [5, Vector2i(0, 2)], [0, Vector2i(0, 3)], [5, Vector2i(0, 3)], [1, Vector2i(0, 0)], [4, Vector2i(1, 0)], [1, Vector2i(0, 2)], [5, Vector2i(1, 2)], [1, Vector2i(0, 3)], [5, Vector2i(1, 3)], [2, Vector2i(0, 0)], [4, Vector2i(2, 0)], [2, Vector2i(0, 1)], [5, Vector2i(2, 1)], [2, Vector2i(0, 2)], [5, Vector2i(2, 2)], [2, Vector2i(0, 3)], [5, Vector2i(2, 3)], [3, Vector2i(0, 0)], [4, Vector2i(3, 0)], [3, Vector2i(0, 2)], [5, Vector2i(3, 2)], [3, Vector2i(0, 3)], [5, Vector2i(3, 3)], [5, Vector2i(0, 2)], [9, Vector2i(0, 2)], [5, Vector2i(0, 3)], [9, Vector2i(0, 3)], [6, Vector2i(0, 2)], [9, Vector2i(1, 2)], [6, Vector2i(0, 3)], [9, Vector2i(1, 3)], [7, Vector2i(0, 2)], [9, Vector2i(2, 2)], [7, Vector2i(0, 3)], [9, Vector2i(2, 3)], [8, Vector2i(0, 2)], [9, Vector2i(3, 2)], [8, Vector2i(0, 3)], [9, Vector2i(3, 3)], [10, Vector2i(0, 1)], [22, Vector2i(0, 1)], [10, Vector2i(0, 2)], [22, Vector2i(0, 2)], [10, Vector2i(0, 3)], [22, Vector2i(0, 3)], [11, Vector2i(0, 2)], [22, Vector2i(1, 2)], [11, Vector2i(0, 3)], [22, Vector2i(1, 3)], [12, Vector2i(0, 1)], [22, Vector2i(2, 1)], [12, Vector2i(0, 2)], [22, Vector2i(2, 2)], [12, Vector2i(0, 3)], [22, Vector2i(2, 3)], [13, Vector2i(0, 2)], [22, Vector2i(3, 2)], [13, Vector2i(0, 3)], [22, Vector2i(3, 3)], [14, Vector2i(0, 1)], [23, Vector2i(0, 1)], [14, Vector2i(0, 2)], [23, Vector2i(0, 2)], [14, Vector2i(0, 3)], [23, Vector2i(0, 3)], [15, Vector2i(0, 2)], [23, Vector2i(1, 2)], [15, Vector2i(0, 3)], [23, Vector2i(1, 3)], [16, Vector2i(0, 1)], [23, Vector2i(2, 1)], [16, Vector2i(0, 2)], [23, Vector2i(2, 2)], [16, Vector2i(0, 3)], [23, Vector2i(2, 3)], [17, Vector2i(0, 2)], [23, Vector2i(3, 2)], [17, Vector2i(0, 3)], [23, Vector2i(3, 3)], [18, Vector2i(0, 1)], [24, Vector2i(0, 1)], [18, Vector2i(0, 2)], [24, Vector2i(0, 2)], [18, Vector2i(0, 3)], [24, Vector2i(0, 3)], [19, Vector2i(0, 2)], [24, Vector2i(1, 2)], [19, Vector2i(0, 3)], [24, Vector2i(1, 3)], [20, Vector2i(0, 1)], [24, Vector2i(2, 1)], [20, Vector2i(0, 2)], [24, Vector2i(2, 2)], [20, Vector2i(0, 3)], [24, Vector2i(2, 3)], [21, Vector2i(0, 2)], [24, Vector2i(3, 2)], [21, Vector2i(0, 3)], [24, Vector2i(3, 3)]]
+sources/11 = SubResource("TileSetAtlasSource_gsxl0")
+sources/12 = SubResource("TileSetAtlasSource_laf5l")
+tile_proxies/coords_level = [[0, Vector2i(0, 0)], [4, Vector2i(0, 0)], [0, Vector2i(0, 2)], [11, Vector2i(0, 2)], [0, Vector2i(0, 3)], [11, Vector2i(0, 3)], [1, Vector2i(0, 0)], [4, Vector2i(1, 0)], [1, Vector2i(0, 2)], [11, Vector2i(1, 2)], [1, Vector2i(0, 3)], [11, Vector2i(1, 3)], [2, Vector2i(0, 0)], [4, Vector2i(2, 0)], [2, Vector2i(0, 1)], [5, Vector2i(2, 1)], [2, Vector2i(0, 2)], [11, Vector2i(2, 2)], [2, Vector2i(0, 3)], [11, Vector2i(2, 3)], [3, Vector2i(0, 0)], [4, Vector2i(3, 0)], [3, Vector2i(0, 2)], [11, Vector2i(3, 2)], [3, Vector2i(0, 3)], [11, Vector2i(3, 3)], [5, Vector2i(0, 2)], [9, Vector2i(0, 2)], [5, Vector2i(0, 3)], [9, Vector2i(0, 3)], [6, Vector2i(0, 2)], [12, Vector2i(0, 2)], [6, Vector2i(0, 3)], [12, Vector2i(0, 3)], [7, Vector2i(0, 2)], [12, Vector2i(1, 2)], [7, Vector2i(0, 3)], [12, Vector2i(1, 3)], [8, Vector2i(0, 2)], [12, Vector2i(2, 2)], [8, Vector2i(0, 3)], [12, Vector2i(2, 3)], [10, Vector2i(0, 1)], [22, Vector2i(0, 1)], [10, Vector2i(0, 2)], [12, Vector2i(3, 2)], [10, Vector2i(0, 3)], [12, Vector2i(3, 3)], [11, Vector2i(0, 2)], [22, Vector2i(1, 2)], [11, Vector2i(0, 3)], [22, Vector2i(1, 3)], [12, Vector2i(0, 1)], [22, Vector2i(2, 1)], [12, Vector2i(0, 2)], [22, Vector2i(2, 2)], [12, Vector2i(0, 3)], [22, Vector2i(2, 3)], [13, Vector2i(0, 2)], [22, Vector2i(3, 2)], [13, Vector2i(0, 3)], [22, Vector2i(3, 3)], [14, Vector2i(0, 1)], [23, Vector2i(0, 1)], [14, Vector2i(0, 2)], [23, Vector2i(0, 2)], [14, Vector2i(0, 3)], [23, Vector2i(0, 3)], [15, Vector2i(0, 2)], [23, Vector2i(1, 2)], [15, Vector2i(0, 3)], [23, Vector2i(1, 3)], [16, Vector2i(0, 1)], [23, Vector2i(2, 1)], [16, Vector2i(0, 2)], [23, Vector2i(2, 2)], [16, Vector2i(0, 3)], [23, Vector2i(2, 3)], [17, Vector2i(0, 2)], [23, Vector2i(3, 2)], [17, Vector2i(0, 3)], [23, Vector2i(3, 3)], [18, Vector2i(0, 1)], [24, Vector2i(0, 1)], [18, Vector2i(0, 2)], [24, Vector2i(0, 2)], [18, Vector2i(0, 3)], [24, Vector2i(0, 3)], [19, Vector2i(0, 2)], [24, Vector2i(1, 2)], [19, Vector2i(0, 3)], [24, Vector2i(1, 3)], [20, Vector2i(0, 1)], [24, Vector2i(2, 1)], [20, Vector2i(0, 2)], [24, Vector2i(2, 2)], [20, Vector2i(0, 3)], [24, Vector2i(2, 3)], [21, Vector2i(0, 2)], [24, Vector2i(3, 2)], [21, Vector2i(0, 3)], [24, Vector2i(3, 3)]]

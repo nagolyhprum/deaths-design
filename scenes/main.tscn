@@ -10,7 +10,7 @@ script = ExtResource("1_level_script")
 
 [node name="WorldGen" type="Node2D" parent="." unique_id=601110256 node_paths=PackedStringArray("player", "start_building_scene", "goal_building_scene")]
 script = ExtResource("2_jyhfs")
-world_seed = 982611174
+world_seed = 1219272240
 world_size = Vector2i(32, 32)
 player = NodePath("Player")
 start_building_scene = NodePath("StartBuilding")
@@ -22,12 +22,15 @@ y_sort_enabled = true
 position = Vector2(0, 462)
 
 [node name="StartBuilding" parent="WorldGen" unique_id=1252004849 instance=ExtResource("3_jyhfs")]
-position = Vector2(10, -15)
-building_seed = 1971769356
+position = Vector2(3072, 640)
+building_seed = 3255533466
+room_size = Vector2i(7, 7)
+is_goal = false
 
 [node name="GoalBuilding" parent="WorldGen" unique_id=92740608 instance=ExtResource("3_jyhfs")]
-position = Vector2(-9, -11)
-building_seed = 1971769356
+position = Vector2(-1536, 128)
+building_seed = 2315622020
+room_size = Vector2i(8, 6)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=45347402]
 

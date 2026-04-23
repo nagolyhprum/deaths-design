@@ -42,6 +42,7 @@ extends Node2D
 @export var floor_layer: TileMapLayer
 # Walls, windows, and doors all share this layer so they Y-sort together.
 @export var wall_layer:  TileMapLayer
+@export var goal_layer:  TileMapLayer
 
 # Source IDs for tiles that replace walls. Adjust to match the authored tileset;
 # both assume the atlas uses the same SWEN directional layout as walls so a wall
@@ -51,7 +52,12 @@ const DOOR_SOURCE_ID   := 22
 # Column tile placed at the four wall corners. Single variant assumed.
 const COLUMN_SOURCE_ID := 5
 const COLUMN_ATLAS     := Vector2i(0, 0)
+# Switch tile placed inside goal buildings along the north or east wall.
+const SWITCH_OFF_SOURCE_ID := 11
+const SWITCH_ON_SOURCE_ID := 12
+const SWITCH_ATLAS     := Vector2i(0, 0)
 
+@export_group("Debug")
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_building_seed
 
@@ -93,6 +99,8 @@ func generate() -> void:
 	var streams := RngStreams.new(building_seed)
 	floor_layer.clear()
 	wall_layer.clear()
+	if goal_layer != null:
+		goal_layer.clear()
 
 	# Step 1: fill the room with random floor tiles, centred on (0, 0).
 	_fill_floor(streams.stream("floor"))
@@ -102,6 +110,12 @@ func generate() -> void:
 	_replace_walls(streams.stream("windows"), 1, 4, WINDOW_SOURCE_ID)
 	# Step 4: swap 1–2 wall tiles out for doors.
 	_replace_walls(streams.stream("doors"), 1, 2, DOOR_SOURCE_ID)
+	# Step 5: if this building is the goal, drop a switch against N or E wall.
+	if is_goal:
+		if goal_layer == null:
+			push_warning("BuildingGen: is_goal is true but goal_layer is not assigned")
+		else:
+			_place_switch(streams.stream("switch"))
 
 
 func _room_origin() -> Vector2i:
@@ -144,6 +158,31 @@ func _fill_walls() -> void:
 	wall_layer.set_cell(Vector2i(last.x + 1,   last.y + 1),   COLUMN_SOURCE_ID, WALL_SOUTH)
 	wall_layer.set_cell(Vector2i(last.x + 1,   origin.y - 1), COLUMN_SOURCE_ID, WALL_EAST)
 	wall_layer.set_cell(Vector2i(origin.x - 1, last.y + 1),   COLUMN_SOURCE_ID, WALL_WEST)
+
+
+func _place_switch(rng: RandomNumberGenerator) -> void:
+	const SWITCH_NORTH := Vector2i(2, 0)
+	const SWITCH_WEST  := Vector2i(0, 0)
+
+	var origin := _room_origin()
+	var last := origin + room_size - Vector2i.ONE - Vector2i.ONE
+
+	# Collect interior cells whose adjacent wall tile is still a plain wall
+	# (windows and doors have replaced the wall's source id, so they're skipped).
+	var candidates: Array = []
+	for x in range(origin.x, last.x + 1):
+		if wall_layer.get_cell_source_id(Vector2i(x, origin.y - 1)) == WfcRoomGenerator.WALL_SOURCE_ID:
+			candidates.append([Vector2i(x, origin.y), SWITCH_NORTH])
+	for y in range(origin.y, last.y + 1):
+		if wall_layer.get_cell_source_id(Vector2i(origin.x - 1, y)) == WfcRoomGenerator.WALL_SOURCE_ID:
+			candidates.append([Vector2i(origin.x, y), SWITCH_WEST])
+
+	if candidates.is_empty():
+		push_warning("BuildingGen: no plain wall tiles available on N/W edges for switch")
+		return
+
+	var pick: Array = candidates[rng.randi_range(0, candidates.size() - 1)]
+	goal_layer.set_cell(pick[0], SWITCH_OFF_SOURCE_ID, pick[1])
 
 
 func _replace_walls(
