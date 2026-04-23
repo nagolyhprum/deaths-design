@@ -1,16 +1,17 @@
-[gd_scene format=3 uid="uid://cu8hs6edjw88f"]
+[gd_scene format=4 uid="uid://cu8hs6edjw88f"]
 
 [ext_resource type="Script" uid="uid://je5nx68f1ipr" path="res://scripts/test_level.gd" id="1_level_script"]
 [ext_resource type="Script" uid="uid://b3q20abhg7451" path="res://scripts/world_gen.gd" id="2_jyhfs"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player_scene"]
 [ext_resource type="PackedScene" uid="uid://dqsmwkr1bp30s" path="res://scenes/building_gen.tscn" id="3_jyhfs"]
+[ext_resource type="TileSet" uid="uid://cdi3qmn1xjend" path="res://assets/tiles/outdoor_tiles.tres" id="5_tbgi4"]
 
 [node name="Main" type="Node2D" unique_id=1454161516]
 script = ExtResource("1_level_script")
 
 [node name="WorldGen" type="Node2D" parent="." unique_id=601110256 node_paths=PackedStringArray("player", "start_building_scene", "goal_building_scene")]
 script = ExtResource("2_jyhfs")
-world_seed = 1219272240
+world_seed = 2991003155
 world_size = Vector2i(32, 32)
 player = NodePath("Player")
 start_building_scene = NodePath("StartBuilding")
@@ -19,18 +20,22 @@ goal_building_scene = NodePath("GoalBuilding")
 [node name="Player" parent="WorldGen" unique_id=111774833 instance=ExtResource("2_player_scene")]
 z_index = 1
 y_sort_enabled = true
-position = Vector2(0, 462)
+position = Vector2(3584, 128)
 
 [node name="StartBuilding" parent="WorldGen" unique_id=1252004849 instance=ExtResource("3_jyhfs")]
-position = Vector2(3072, 640)
-building_seed = 3255533466
-room_size = Vector2i(7, 7)
+position = Vector2(3584, 128)
+building_seed = 1852387567
+room_size = Vector2i(9, 7)
 is_goal = false
 
 [node name="GoalBuilding" parent="WorldGen" unique_id=92740608 instance=ExtResource("3_jyhfs")]
-position = Vector2(-1536, 128)
-building_seed = 2315622020
-room_size = Vector2i(8, 6)
+position = Vector2(-2304, 384)
+building_seed = 2276856599
+room_size = Vector2i(8, 9)
+
+[node name="TileMapLayer" type="TileMapLayer" parent="WorldGen" unique_id=885026978]
+tile_map_data = PackedByteArray("AAD+/wgACAAAAAAAAAD+/wkACAAAAAAAAAD+/woACAAAAAAAAAD+/wsACAAAAAAAAAD//wsACAAAAAAAAAD//wwACAAAAAAAAAD//w0ACAAAAAAAAAD//w4ACAAAAAAAAAD+/w4ACAAAAAAAAAD+/w8ACAAAAAAAAAD+/xAACAABAAAAAAD+/w0ACAAAAAAAAAD+/wwACAAAAAAAAAD//woACAABAAAAAAAAAAoACAAAAAAAAAAAAAwACAABAAAAAAAAAAsACAABAAAAAAAAAAkACAAAAAAAAAAAAAgACAAAAAAAAAD//wgACAABAAAAAAD//wkACAABAAAAAAABAAsACAAAAAAAAAACAAsACAAAAAAAAAACAAoACAAAAAAAAAABAAkACAAAAAAAAAABAAoACAAAAAAAAAABAAgACAAAAAAAAAAAAAcACAAAAAAAAAAAAAYACAABAAAAAAABAAYACAABAAAAAAACAAcACAABAAAAAAACAAgACAABAAAAAAACAAkACAABAAAAAAADAAoACAABAAAAAAADAAsACAABAAAAAAADAAwACAABAAAAAAAEAAwACAABAAAAAAAEAA0ACAABAAAAAAADAA0ACAABAAAAAAACAA0ACAABAAAAAAABAA0ACAABAAAAAAD//wcACAABAAAAAAD//wYACAABAAAAAAD//wUACAABAAAAAAAAAAUACAABAAAAAAAAAA4ACAABAAAAAAAAAA8ACAABAAAAAAAAABAACAABAAAAAAABABAACAABAAAAAAABAA8ACAABAAAAAAABAA4ACAABAAAAAAD//w8ACAABAAAAAAD//xAACAABAAAAAAA=")
+tile_set = ExtResource("5_tbgi4")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=45347402]
 

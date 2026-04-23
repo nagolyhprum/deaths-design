@@ -23,6 +23,10 @@ const SAVE_PATH := "user://worldgen.cfg"
 const OUTDOOR_FLOOR_SOURCE_ID := 0   # fallback; update when outdoor_tiles is authored
 const OUTDOOR_FLOOR_ATLAS     := Vector2i(0, 0)
 const TILE_SIZE = Vector2i(256, 128)
+# Source IDs for the ground tiles painted onto world_layer in step 5.
+# Adjust to match the authored tileset.
+const DIRT_SOURCE_ID          := 9
+const DIRT_FARMLAND_SOURCE_ID := 8
 
 @export var world_seed: int = 0
 
@@ -78,6 +82,9 @@ func generate() -> void:
 	if goal_building_scene == null:
 		push_warning("WorldGen: goal_building_scene is not assigned")
 		return
+	if world_layer == null:
+		push_warning("WorldGen: world_layer is not assigned")
+		return
 
 	_clear_extras()
 	_occupied_rects.clear()
@@ -102,6 +109,22 @@ func generate() -> void:
 	# Step 4: drop the player at the centre of the start building.
 	if player != null:
 		player.global_position = start_building_scene.global_position
+	# Step 5: paint the ground with dirt / dirt-farmland tiles.
+	_fill_world(streams.stream("world"))
+
+
+func _fill_world(rng: RandomNumberGenerator) -> void:
+	if world_layer == null:
+		push_warning("WorldGen: world_layer is not assigned")
+		return
+	world_layer.clear()
+
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	for y in range(-half.y, world_size.y - half.y):
+		for x in range(-half.x, world_size.x - half.x):
+			var source := DIRT_SOURCE_ID if rng.randi_range(0, 1) == 0 else DIRT_FARMLAND_SOURCE_ID
+			world_layer.set_cell(Vector2i(x, y), source, Vector2i(0, 0))
 
 
 # Picks a room size, finds a non-overlapping world position, applies everything
@@ -122,7 +145,7 @@ func _place_building(
 
 	b.room_size = size
 	b.building_seed = rng.randi()
-	b.global_position = Vector2(pos * TILE_SIZE)
+	b.global_position = world_layer.to_global(world_layer.map_to_local(pos))
 	_occupied_rects.append(_footprint(pos, size))
 	b.generate()
 	return true
@@ -137,11 +160,15 @@ func _find_free_position(
 ) -> Vector2i:
 	@warning_ignore("integer_division")
 	var half := world_size / 2
+	var world_rect := Rect2i(-half, world_size)
 	for attempt in max_attempts:
 		var pos := _random_world_pos(rng, half)
 		if avoid_dist > 0 and pos.distance_to(avoid) < avoid_dist:
 			continue
-		if _overlaps_any(_footprint(pos, size)):
+		var fp := _footprint(pos, size)
+		if not world_rect.encloses(fp):
+			continue
+		if _overlaps_any(fp):
 			continue
 		return pos
 	return INVALID_POS
@@ -162,10 +189,7 @@ func _overlaps_any(rect: Rect2i) -> bool:
 
 
 func _grid_pos(b: BuildingGen) -> Vector2i:
-	return Vector2i(
-		roundi(b.global_position.x / TILE_SIZE.x),
-		roundi(b.global_position.y / TILE_SIZE.y),
-	)
+	return world_layer.local_to_map(world_layer.to_local(b.global_position))
 
 
 func _place_extras(rng: RandomNumberGenerator) -> void:
