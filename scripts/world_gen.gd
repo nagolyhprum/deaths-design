@@ -38,11 +38,10 @@ var spawn_building: BuildingGen = null
 
 
 func _ready() -> void:
-	# if Engine.is_editor_hint():
-	# 	return
-	# _load_seed()
-	# generate()
-	pass
+	if Engine.is_editor_hint():
+		return
+	_load_seed()
+	generate()
 
 
 func randomize_world_seed() -> void:

@@ -10,14 +10,14 @@ script = ExtResource("1_level_script")
 
 [node name="WorldGen" type="Node2D" parent="." unique_id=601110256]
 script = ExtResource("2_jyhfs")
+world_seed = 1374247286
 
 [node name="Player" parent="WorldGen" unique_id=111774833 instance=ExtResource("2_player_scene")]
 z_index = 1
 y_sort_enabled = true
 position = Vector2(0, 462)
 
-[node name="BuildingGen" parent="WorldGen" unique_id=1252004849 instance=ExtResource("3_jyhfs")]
-y_sort_enabled = true
+[node name="BuildingGen2" parent="WorldGen" unique_id=1252004849 instance=ExtResource("3_jyhfs")]
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=45347402]
 
@@ -30,5 +30,3 @@ theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
 text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad
 Up, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."
-
-[editable path="WorldGen/BuildingGen"]

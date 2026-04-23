@@ -37,6 +37,19 @@ extends Node2D
 # When true this building is the player's goal (the Store the player must reach).
 @export var is_goal:       bool = false
 
+@export var floor_layer: TileMapLayer
+# Walls, windows, and doors all share this layer so they Y-sort together.
+@export var wall_layer:  TileMapLayer
+
+# Source IDs for tiles that replace walls. Adjust to match the authored tileset;
+# both assume the atlas uses the same SWEN directional layout as walls so a wall
+# tile's atlas coord can be reused when swapping in a window or door.
+const WINDOW_SOURCE_ID := 24
+const DOOR_SOURCE_ID   := 22
+# Column tile placed at the four wall corners. Single variant assumed.
+const COLUMN_SOURCE_ID := 5
+const COLUMN_ATLAS     := Vector2i(0, 0)
+
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_building_seed
 
@@ -55,12 +68,11 @@ var _placed_hazards: Dictionary = {}  # floor_index (int) -> Array[HazardPass.Pl
 
 
 func _ready() -> void:
-	# if Engine.is_editor_hint():
-	# 	return
-	# if get_parent() is WorldGen:
-	# 	return
-	# generate()
-	return
+	if Engine.is_editor_hint():
+		return
+	if get_parent() is WorldGen:
+		return
+	generate()
 
 
 func randomize_building_seed() -> void:
@@ -69,36 +81,96 @@ func randomize_building_seed() -> void:
 
 
 func generate() -> void:
-	_placed_hazards.clear()
+	if floor_layer == null:
+		push_warning("BuildingGen: floor_layer is not assigned")
+		return
+	if wall_layer == null:
+		push_warning("BuildingGen: wall_layer is not assigned")
+		return
+
 	var streams := RngStreams.new(building_seed)
+	floor_layer.clear()
+	wall_layer.clear()
 
-	if num_floors > 1 or has_basement:
-		_generate_multifloor(streams)
-	else:
-		# Phase 1 / 2 single-floor path (backward-compatible).
-		var floor_layer := _get_floor_layer()
-		if floor_layer == null:
-			push_warning("BuildingGen: expected a TileMapLayer child (floor)")
-			return
+	# Step 1: fill the room with random floor tiles, centred on (0, 0).
+	_fill_floor(streams.stream("floor"))
+	# Step 2: draw the wall border around the room.
+	_fill_walls()
+	# Step 3: swap 1–4 wall tiles out for windows.
+	_replace_walls(streams.stream("windows"), 1, 4, WINDOW_SOURCE_ID)
+	# Step 4: swap 1–2 wall tiles out for doors.
+	_replace_walls(streams.stream("doors"), 1, 2, DOOR_SOURCE_ID)
 
-		var props_layer    := _get_props_layer()
-		var hazards_layer  := _get_hazards_layer()
-		floor_layer.clear()
-		if props_layer != null:
-			props_layer.clear()
-		if hazards_layer != null:
-			hazards_layer.clear()
 
-		if room_cols > 1 or room_rows > 1:
-			_generate_multi_room(floor_layer, props_layer, hazards_layer, streams)
-		else:
-			_generate_single_room(floor_layer, props_layer, hazards_layer, streams)
+func _room_origin() -> Vector2i:
+	@warning_ignore("integer_division")
+	return -room_size / 2
+
+
+func _fill_floor(rng: RandomNumberGenerator) -> void:
+	var origin := _room_origin()
+	for y in room_size.y:
+		for x in room_size.x:
+			var cell := origin + Vector2i(x, y)
+			var variant := rng.randi_range(0, WfcRoomGenerator.FLOOR_VARIANT_COUNT - 1)
+			floor_layer.set_cell(cell, WfcRoomGenerator.FLOOR_SOURCE_ID, Vector2i(variant, 0))
+
+
+func _fill_walls() -> void:
+	# Atlas x order is S, W, E, N.
+	const WALL_SOUTH := Vector2i(2, 0)
+	const WALL_WEST  := Vector2i(3, 0)
+	const WALL_EAST  := Vector2i(0, 0)
+	const WALL_NORTH := Vector2i(1, 0)
+
+	var origin := _room_origin()
+	var last := origin + room_size - Vector2i.ONE  # inclusive bottom-right corner
+	for x in room_size.x:
+		var top    := Vector2i(origin.x + x, origin.y - 1)
+		var bottom := Vector2i(origin.x + x, last.y + 1)
+		wall_layer.set_cell(top,    WfcRoomGenerator.WALL_SOURCE_ID, WALL_NORTH)
+		wall_layer.set_cell(bottom, WfcRoomGenerator.WALL_SOURCE_ID, WALL_SOUTH)
+	for y in range(0, room_size.y):
+		var left  := Vector2i(origin.x - 1, origin.y + y)
+		var right := Vector2i(last.x + 1,   origin.y + y)
+		wall_layer.set_cell(left,  WfcRoomGenerator.WALL_SOURCE_ID, WALL_WEST)
+		wall_layer.set_cell(right, WfcRoomGenerator.WALL_SOURCE_ID, WALL_EAST)
+
+	# Cap the four corners with column tiles. Columns reuse the wall SWEN atlas,
+	# so top corners face N and bottom corners face S.
+	wall_layer.set_cell(Vector2i(origin.x - 1, origin.y - 1), COLUMN_SOURCE_ID, WALL_NORTH)
+	wall_layer.set_cell(Vector2i(last.x + 1,   last.y + 1),   COLUMN_SOURCE_ID, WALL_SOUTH)
+	wall_layer.set_cell(Vector2i(last.x + 1,   origin.y - 1), COLUMN_SOURCE_ID, WALL_EAST)
+	wall_layer.set_cell(Vector2i(origin.x - 1, last.y + 1),   COLUMN_SOURCE_ID, WALL_WEST)
+
+
+func _replace_walls(
+	rng:       RandomNumberGenerator,
+	count_min: int,
+	count_max: int,
+	source_id: int
+) -> void:
+	# Only consider plain wall tiles so later passes don't overwrite windows/doors.
+	var wall_cells: Array = wall_layer.get_used_cells_by_id(WfcRoomGenerator.WALL_SOURCE_ID)
+	if wall_cells.is_empty():
+		return
+
+	var count := rng.randi_range(count_min, count_max)
+	count = mini(count, wall_cells.size())
+
+	for i in count:
+		var idx := rng.randi_range(0, wall_cells.size() - 1)
+		var cell: Vector2i = wall_cells[idx]
+		wall_cells.remove_at(idx)
+
+		var atlas := wall_layer.get_cell_atlas_coords(cell)
+		wall_layer.set_cell(cell, source_id, atlas)
 
 
 # ── Single-room (Phase 1) ─────────────────────────────────────────────────────
 
 func _generate_single_room(
-	floor_layer:   TileMapLayer,
+	fl:            TileMapLayer,
 	props_layer:   TileMapLayer,
 	hazards_layer: TileMapLayer,
 	streams:       RngStreams,
@@ -106,7 +178,7 @@ func _generate_single_room(
 ) -> void:
 	WfcRoomGenerator.generate(
 		streams.derive_seed("wfc"),
-		floor_layer,
+		fl,
 		Vector2i.ZERO,
 		room_size
 	)
@@ -114,7 +186,7 @@ func _generate_single_room(
 	if props_layer != null:
 		FurniturePass.generate(
 			streams.derive_seed("furniture"),
-			floor_layer,
+			fl,
 			props_layer,
 			Vector2i.ZERO,
 			room_size,
@@ -124,7 +196,7 @@ func _generate_single_room(
 	if hazards_layer != null:
 		var ph := HazardPass.generate(
 			streams.derive_seed("hazards"),
-			floor_layer,
+			fl,
 			hazards_layer,
 			Vector2i.ZERO,
 			room_size,
@@ -137,7 +209,7 @@ func _generate_single_room(
 # ── Multi-room (Phase 2) ──────────────────────────────────────────────────────
 
 func _generate_multi_room(
-	floor_layer:   TileMapLayer,
+	fl:            TileMapLayer,
 	props_layer:   TileMapLayer,
 	hazards_layer: TileMapLayer,
 	streams:       RngStreams,
@@ -164,7 +236,7 @@ func _generate_multi_room(
 
 		WfcRoomGenerator.generate(
 			hash([wfc_base, i]),
-			floor_layer,
+			fl,
 			room.origin,
 			room.size,
 			constraints
@@ -173,7 +245,7 @@ func _generate_multi_room(
 		if props_layer != null:
 			FurniturePass.generate(
 				hash([furn_base, i]),
-				floor_layer,
+				fl,
 				props_layer,
 				room.origin,
 				room.size,
@@ -183,7 +255,7 @@ func _generate_multi_room(
 		if hazards_layer != null:
 			var ph := HazardPass.generate(
 				hash([hazard_base, i]),
-				floor_layer,
+				fl,
 				hazards_layer,
 				room.origin,
 				room.size,
@@ -194,7 +266,7 @@ func _generate_multi_room(
 	if not floor_placed.is_empty():
 		_placed_hazards[floor_index] = floor_placed
 
-	if not _validate_connectivity(floor_layer, layout):
+	if not _validate_connectivity(fl, layout):
 		push_warning("BuildingGen: connectivity check failed for seed %d" % building_seed)
 
 
@@ -599,7 +671,7 @@ func _find_or_create_layer(layer_name: String) -> TileMapLayer:
 
 # ── Connectivity validation (single-floor) ───────────────────────────────────
 
-func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> bool:
+func _validate_connectivity(fl: TileMapLayer, layout: RoomGraph) -> bool:
 	if layout.rooms.is_empty():
 		return true
 
@@ -618,7 +690,7 @@ func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> boo
 		for y in r.size.y:
 			for x in r.size.x:
 				var cell := r.origin + Vector2i(x, y)
-				var src := floor_layer.get_cell_source_id(cell)
+				var src := fl.get_cell_source_id(cell)
 				if src != -1 and src != WfcRoomGenerator.WALL_SOURCE_ID:
 					walkable_total += 1
 
@@ -628,7 +700,7 @@ func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> boo
 			continue
 		if not bounds.has_point(cell):
 			continue
-		var src := floor_layer.get_cell_source_id(cell)
+		var src := fl.get_cell_source_id(cell)
 		if src == -1 or src == WfcRoomGenerator.WALL_SOURCE_ID:
 			continue
 		visited.append(cell)
@@ -643,6 +715,9 @@ func _validate_connectivity(floor_layer: TileMapLayer, layout: RoomGraph) -> boo
 # ── Node helpers ──────────────────────────────────────────────────────────────
 
 func _get_floor_layer() -> TileMapLayer:
+	if floor_layer != null:
+		return floor_layer
+	# Fallback: scan children for legacy scenes that haven't wired the export.
 	for child in get_children():
 		if child is TileMapLayer and child.name == "TileMapLayer":
 			return child
