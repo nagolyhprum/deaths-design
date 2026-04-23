@@ -43,12 +43,18 @@ extends Node2D
 # Walls, windows, and doors all share this layer so they Y-sort together.
 @export var wall_layer:  TileMapLayer
 @export var goal_layer:  TileMapLayer
+@export var triggers_layer:  TileMapLayer
 
 # Source IDs for tiles that replace walls. Adjust to match the authored tileset;
 # both assume the atlas uses the same SWEN directional layout as walls so a wall
 # tile's atlas coord can be reused when swapping in a window or door.
-const WINDOW_SOURCE_ID := 24
-const DOOR_SOURCE_ID   := 22
+const WINDOW_SOURCE_ID    := 24
+const DOOR_SOURCE_ID      := 22
+const DOOR_OPEN_SOURCE_ID := 23
+# Scene Collection source IDs on triggers_layer. Each tile should be a scene
+# carrying an Area2D (plus diamond CollisionShape2D) that fires on body enter.
+const INSIDE_DOOR_TRIGGER_SOURCE_ID  := 14
+const OUTSIDE_DOOR_TRIGGER_SOURCE_ID := 15
 # Column tile placed at the four wall corners. Single variant assumed.
 const COLUMN_SOURCE_ID := 5
 const COLUMN_ATLAS     := Vector2i(0, 0)
@@ -101,6 +107,8 @@ func generate() -> void:
 	wall_layer.clear()
 	if goal_layer != null:
 		goal_layer.clear()
+	if triggers_layer != null:
+		triggers_layer.clear()
 
 	# Step 1: fill the room with random floor tiles, centred on (0, 0).
 	_fill_floor(streams.stream("floor"))
@@ -108,7 +116,7 @@ func generate() -> void:
 	_fill_walls()
 	# Step 3: swap 1–4 wall tiles out for windows.
 	_replace_walls(streams.stream("windows"), 1, 4, WINDOW_SOURCE_ID)
-	# Step 4: swap 1–2 wall tiles out for doors.
+	# Step 4: swap 1–2 wall tiles out for doors (also paints door triggers).
 	_replace_walls(streams.stream("doors"), 1, 2, DOOR_SOURCE_ID)
 	# Step 5: if this building is the goal, drop a switch against N or E wall.
 	if is_goal:
@@ -116,6 +124,16 @@ func generate() -> void:
 			push_warning("BuildingGen: is_goal is true but goal_layer is not assigned")
 		else:
 			_place_switch(streams.stream("switch"))
+
+
+# Offset (in tile coords) from a door cell to the first interior floor cell.
+# Atlas x encodes which wall the door sits on: E=0, N=1, S=2, W=3.
+func _door_inside_offset(atlas: Vector2i) -> Vector2i:
+	if atlas.x == 0: return Vector2i(-1, 0)  # east wall  → inside is west
+	if atlas.x == 1: return Vector2i(0, -1)   # north wall → inside is south
+	if atlas.x == 2: return Vector2i(0, -1)  # south wall → inside is north
+	if atlas.x == 3: return Vector2i(-1, 0)   # west wall  → inside is east
+	return Vector2i.ZERO
 
 
 func _room_origin() -> Vector2i:
@@ -206,6 +224,12 @@ func _replace_walls(
 
 		var atlas := wall_layer.get_cell_atlas_coords(cell)
 		wall_layer.set_cell(cell, source_id, atlas)
+
+		# Doors also drop inside/outside trigger tiles on triggers_layer.
+		if source_id == DOOR_SOURCE_ID and triggers_layer != null:
+			var offset := _door_inside_offset(atlas)
+			triggers_layer.set_cell(cell + offset, INSIDE_DOOR_TRIGGER_SOURCE_ID,  Vector2i.ZERO)
+			triggers_layer.set_cell(cell - offset, OUTSIDE_DOOR_TRIGGER_SOURCE_ID, Vector2i.ZERO)
 
 
 # ── Single-room (Phase 1) ─────────────────────────────────────────────────────
