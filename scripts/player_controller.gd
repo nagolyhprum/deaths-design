@@ -36,7 +36,6 @@ func _physics_process(delta: float) -> void:
 		_animation_time = 0.0
 
 	move_and_slide()
-	_clamp_to_play_area(previous_position)
 	_update_sprite(is_moving)
 
 
@@ -71,23 +70,6 @@ func _facing_row_from_input(input_vector: Vector2) -> int:
 	if _facing_row in [2, 3]:
 		return 3
 	return 0
-
-
-func _clamp_to_play_area(previous_position: Vector2) -> void:
-	if _has_map_bounds:
-		var previous_local := previous_position - _map_center
-		var current_local := global_position - _map_center
-		if _is_inside_map_bounds(current_local):
-			return
-		if _is_inside_map_bounds(previous_local):
-			global_position = _map_center + _resolve_edge_slide(previous_local, current_local)
-			return
-		global_position = _map_center + _clamp_local_position_to_bounds(current_local)
-		return
-
-	var viewport_size := get_viewport_rect().size
-	global_position = global_position.clamp(Vector2.ZERO, viewport_size)
-
 
 func _update_sprite(is_moving: bool) -> void:
 	var frame := 1

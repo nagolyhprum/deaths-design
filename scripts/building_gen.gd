@@ -55,11 +55,12 @@ var _placed_hazards: Dictionary = {}  # floor_index (int) -> Array[HazardPass.Pl
 
 
 func _ready() -> void:
-	if Engine.is_editor_hint():
-		return
-	if get_parent() is WorldGen:
-		return
-	generate()
+	# if Engine.is_editor_hint():
+	# 	return
+	# if get_parent() is WorldGen:
+	# 	return
+	# generate()
+	return
 
 
 func randomize_building_seed() -> void:

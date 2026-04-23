@@ -9,6 +9,7 @@ script = ExtResource("3_wrldg")
 world_seed = 174
 
 [node name="BuildingGen" parent="." unique_id=1252004849 instance=ExtResource("1_syqki")]
+building_seed = 3262589283
 
 [node name="TileMapLayer" type="TileMapLayer" parent="." unique_id=1957234024]
 tile_set = ExtResource("2_v8aan")

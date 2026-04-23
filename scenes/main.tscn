@@ -2,14 +2,18 @@
 
 [ext_resource type="Script" uid="uid://je5nx68f1ipr" path="res://scripts/test_level.gd" id="1_level_script"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player_scene"]
-[ext_resource type="PackedScene" uid="uid://50pyd26mk7p3" path="res://scenes/world_gen.tscn" id="3_sugp2"]
+[ext_resource type="PackedScene" uid="uid://dqsmwkr1bp30s" path="res://scenes/building_gen.tscn" id="3_jyhfs"]
 
 [node name="Main" type="Node2D" unique_id=1454161516]
 script = ExtResource("1_level_script")
 
-[node name="WorldGen" parent="." unique_id=155974679 instance=ExtResource("3_sugp2")]
+[node name="BuildingGen" parent="." unique_id=1252004849 instance=ExtResource("3_jyhfs")]
+y_sort_enabled = true
 
-[node name="Player" parent="." unique_id=111774833 instance=ExtResource("2_player_scene")]
+[node name="Player" parent="BuildingGen" unique_id=111774833 instance=ExtResource("2_player_scene")]
+z_index = 1
+y_sort_enabled = true
+position = Vector2(0, 462)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=45347402]
 
@@ -20,4 +24,7 @@ offset_right = 493.0
 offset_bottom = 76.0
 theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
-text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad\nUp, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."
+text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad
+Up, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."
+
+[editable path="BuildingGen"]
