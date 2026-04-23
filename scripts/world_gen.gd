@@ -27,6 +27,8 @@ const TILE_SIZE = Vector2i(256, 128)
 # Adjust to match the authored tileset.
 const DIRT_SOURCE_ID          := 9
 const DIRT_FARMLAND_SOURCE_ID := 8
+# Fence tiles painted around the world perimeter in step 6.
+const FENCE_SOURCE_ID    := [26, 27, 28, 29]
 
 @export var world_seed: int = 0
 
@@ -111,6 +113,8 @@ func generate() -> void:
 		player.global_position = start_building_scene.global_position
 	# Step 5: paint the ground with dirt / dirt-farmland tiles.
 	_fill_world(streams.stream("world"))
+	# Step 6: ring the world with fence tiles.
+	_fill_perimeter_fence(streams.stream("fence"))
 
 
 func _fill_world(rng: RandomNumberGenerator) -> void:
@@ -121,10 +125,36 @@ func _fill_world(rng: RandomNumberGenerator) -> void:
 
 	@warning_ignore("integer_division")
 	var half := world_size / 2
-	for y in range(-half.y, world_size.y - half.y):
-		for x in range(-half.x, world_size.x - half.x):
+	for y in range(-half.y+1, world_size.y - half.y - 1):
+		for x in range(-half.x+1, world_size.x - half.x - 1):
 			var source := DIRT_SOURCE_ID if rng.randi_range(0, 1) == 0 else DIRT_FARMLAND_SOURCE_ID
 			world_layer.set_cell(Vector2i(x, y), source, Vector2i(0, 0))
+
+
+func _fill_perimeter_fence(rng: RandomNumberGenerator) -> void:
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	var min_x := -half.x
+	var min_y := -half.y
+	var max_x := world_size.x - half.x - 1  # inclusive
+	var max_y := world_size.y - half.y - 1  # inclusive
+	const FENCE_NORTH_ATLAS  := Vector2i(1, 0)
+	const FENCE_EAST_ATLAS   := Vector2i(0, 0)
+	const FENCE_SOUTH_ATLAS  := Vector2i(2, 0)
+	const FENCE_WEST_ATLAS   := Vector2i(3, 0)
+
+	# Top and bottom rows (include corners, which end up horizontal).
+	for x in range(min_x +1, max_x):
+		world_layer.set_cell(Vector2i(x, min_y), _random_fence_id(rng), FENCE_NORTH_ATLAS)
+		world_layer.set_cell(Vector2i(x, max_y), _random_fence_id(rng), FENCE_SOUTH_ATLAS)
+	# Left and right columns (skip corners, already set above).
+	for y in range(min_y + 1, max_y):
+		world_layer.set_cell(Vector2i(min_x, y), _random_fence_id(rng), FENCE_WEST_ATLAS)
+		world_layer.set_cell(Vector2i(max_x, y), _random_fence_id(rng), FENCE_EAST_ATLAS)
+
+
+func _random_fence_id(rng: RandomNumberGenerator) -> int:
+	return FENCE_SOURCE_ID[rng.randi_range(0, FENCE_SOURCE_ID.size() - 1)]
 
 
 # Picks a room size, finds a non-overlapping world position, applies everything
