@@ -48,7 +48,7 @@ var connections: Array[ConnectionData] = []
 
 # Generate a room_cols × room_rows building layout.
 # room_size:    size of each individual room in tiles (includes wall border).
-# room_weights: optional Dict[TileMeta.RoomType → float] from BuildingArchetype.
+# room_weights: optional Dict[TileMeta.RoomType → float].
 #               Empty or null → equal-weight default selection.
 static func generate(
 	seed: int,

@@ -2,27 +2,24 @@
 class_name WorldGen
 extends Node2D
 
-# Top-level world orchestrator.
+# Top-level world orchestrator. generate() runs a single fixed 6-step pass
+# that lays out two scene-authored BuildingGen children (start + goal), drops
+# a handful of extra BuildingGen instances for decoration, positions the
+# player, and paints the ground and perimeter fence onto world_layer:
 #
-# Phase 1: derives a per-building seed from world_seed and forwards it to the
-# single BuildingGen child.
-#
-# Phase 2: derives seeds for multiple BuildingGen children and routes a simple
-# outdoor path on the outdoor TileMapLayer between building entrance tiles.
-#
-# Phase 5: assigns building archetypes (HOUSE, SHOP, APARTMENT, STORE) from
-# BuildingArchetype, marks the last building as the goal (STORE archetype +
-# is_goal=true), and emits goal_building_changed when the assignment is made.
-# Outdoor routing draws a tile path between all consecutive building entrances.
+#   Step 1 — place the start building at a random world-grid position.
+#   Step 2 — place the goal building, keeping it at least half the shorter
+#            world dimension away from the start.
+#   Step 3 — spawn 3–6 extra random buildings that don't overlap.
+#   Step 4 — drop the player at the start building's position.
+#   Step 5 — paint the world interior with dirt / dirt-farmland tiles.
+#   Step 6 — ring the world perimeter with fence tiles.
 #
 # Seed persistence: on non-editor runs, world_seed is loaded from user:// on
 # startup and saved whenever it changes.
 
 const SAVE_PATH := "user://worldgen.cfg"
 
-const OUTDOOR_FLOOR_SOURCE_ID := 0   # fallback; update when outdoor_tiles is authored
-const OUTDOOR_FLOOR_ATLAS     := Vector2i(0, 0)
-const TILE_SIZE = Vector2i(256, 128)
 # Source IDs for the ground tiles painted onto world_layer in step 5.
 # Adjust to match the authored tileset.
 const DIRT_SOURCE_ID          := 9
@@ -46,14 +43,6 @@ const FENCE_SOURCE_ID    := [26, 27, 28, 29]
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_world_seed
 
-# Emitted when the goal (Store) building is identified during generation.
-@warning_ignore("unused_signal")
-signal goal_building_changed(building: BuildingGen)
-
-# The building the player must reach (assigned during generate()).
-var goal_building: BuildingGen = null
-# The building where the player starts (first BuildingGen child).
-var spawn_building: BuildingGen = null
 # Extras spawned by _place_extras; freed on the next generate().
 var _extra_buildings: Array[BuildingGen] = []
 # Footprints (in world-tile coords) of every placed building this generation,
@@ -255,74 +244,6 @@ func _random_world_pos(rng: RandomNumberGenerator, half: Vector2i) -> Vector2i:
 		rng.randi_range(-half.x, half.x - 1),
 		rng.randi_range(-half.y, half.y - 1),
 	)
-
-
-# ── Archetype selection ───────────────────────────────────────────────────────
-
-# Pick a non-goal archetype for building at index i.
-# Cycles through HOUSE → SHOP → APARTMENT to give variety across a street.
-static func _pick_archetype(rng: RandomNumberGenerator, index: int) -> int:
-	var pool := [
-		BuildingArchetype.ArchetypeID.HOUSE,
-		BuildingArchetype.ArchetypeID.SHOP,
-		BuildingArchetype.ArchetypeID.APARTMENT,
-	]
-	return pool[index % pool.size()]
-
-
-# ── Outdoor generation ────────────────────────────────────────────────────────
-
-func _generate_outdoor(streams: RngStreams, buildings: Array[BuildingGen]) -> void:
-	var outdoor_layer := _get_outdoor_layer()
-	if outdoor_layer == null:
-		return
-
-	outdoor_layer.clear()
-
-	if buildings.size() < 2:
-		return
-
-	# Collect entrance positions from each building (south-centre of ground floor).
-	var entrances: Array[Vector2i] = []
-	for b in buildings:
-		entrances.append(_building_entrance(b))
-
-	# Route a straight (axis-aligned) path between every consecutive entrance pair.
-	for i in range(entrances.size() - 1):
-		_route_path(outdoor_layer, entrances[i], entrances[i + 1])
-
-	# Mark the goal building's entrance tile distinctively.
-	# Uses a different atlas coord (1,0) so it can be styled separately in the TileSet.
-	if goal_building != null:
-		var goal_entrance := _building_entrance(goal_building)
-		outdoor_layer.set_cell(goal_entrance, OUTDOOR_FLOOR_SOURCE_ID, Vector2i(1, 0))
-
-
-func _building_entrance(b: BuildingGen) -> Vector2i:
-	# Use the south-centre tile of the building as its street entrance.
-	var total_h := b.room_size.y * b.room_rows
-	var total_w := b.room_size.x * b.room_cols
-	var bpos := Vector2i(int(b.global_position.x), int(b.global_position.y))
-	return bpos + Vector2i(total_w / 2, total_h - 1)
-
-
-func _route_path(layer: TileMapLayer, from_tile: Vector2i, to_tile: Vector2i) -> void:
-	# Axis-aligned L-shaped path: go horizontal first, then vertical.
-	var cur := from_tile
-	while cur.x != to_tile.x:
-		layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-		cur.x += 1 if to_tile.x > cur.x else -1
-	while cur.y != to_tile.y:
-		layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-		cur.y += 1 if to_tile.y > cur.y else -1
-	layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-
-
-func _get_outdoor_layer() -> TileMapLayer:
-	for child in get_children():
-		if child is TileMapLayer:
-			return child
-	return null
 
 
 # ── Seed persistence ──────────────────────────────────────────────────────────

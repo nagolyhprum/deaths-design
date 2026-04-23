@@ -1,6 +1,9 @@
 extends GutTest
 
-# Phase 2 tests: room type assignment, building connectivity, door socket matching.
+# RoomGraph tests: room type assignment and door socket matching on shared
+# walls. BuildingGen no longer supports multi-room layouts — the former
+# _validate_connectivity tests have been removed. RoomGraph itself is still
+# exercised here because it is still a live module used by other tooling.
 
 
 # ── RoomGraph: room type assignment ──────────────────────────────────────────
@@ -14,13 +17,13 @@ func test_room_graph_all_rooms_have_valid_type() -> void:
 
 
 func test_room_graph_contains_exactly_one_hall() -> void:
-	for seed in [1, 42, 123, 999]:
-		var g := RoomGraph.generate(seed, Vector2i(8, 8), 3, 2)
+	for s in [1, 42, 123, 999]:
+		var g := RoomGraph.generate(s, Vector2i(8, 8), 3, 2)
 		var hall_count := 0
 		for room in g.rooms:
 			if (room as RoomGraph.RoomData).type == TileMeta.RoomType.HALL:
 				hall_count += 1
-		assert_eq(hall_count, 1, "seed=%d: exactly one HALL per building" % seed)
+		assert_eq(hall_count, 1, "seed=%d: exactly one HALL per building" % s)
 
 
 func test_room_graph_non_hall_rooms_have_valid_types() -> void:
@@ -37,101 +40,6 @@ func test_room_graph_non_hall_rooms_have_valid_types() -> void:
 		var r: RoomGraph.RoomData = room
 		assert_true(r.type in valid,
 			"room %d has type %d which is outside the valid RoomType enum" % [r.index, r.type])
-
-
-# ── Building connectivity (flood-fill must pass) ──────────────────────────────
-
-func test_building_connectivity_2x1() -> void:
-	var building := BuildingGen.new()
-	var floor_l := TileMapLayer.new()
-	floor_l.name = "TileMapLayer"
-	var props_l := TileMapLayer.new()
-	props_l.name = "PropsLayer"
-	building.add_child(floor_l)
-	building.add_child(props_l)
-	building.building_seed = 42
-	building.room_cols = 2
-	building.room_rows = 1
-	building.room_size = Vector2i(8, 8)
-	building.generate()
-	var layout := RoomGraph.generate(
-		RngStreams.new(42).derive_seed("layout"), Vector2i(8, 8), 2, 1
-	)
-	assert_true(
-		building._validate_connectivity(floor_l, layout),
-		"2x1 building should be fully connected via the shared east-west door"
-	)
-	building.free()
-
-
-func test_building_connectivity_1x2() -> void:
-	var building := BuildingGen.new()
-	var floor_l := TileMapLayer.new()
-	floor_l.name = "TileMapLayer"
-	var props_l := TileMapLayer.new()
-	props_l.name = "PropsLayer"
-	building.add_child(floor_l)
-	building.add_child(props_l)
-	building.building_seed = 55
-	building.room_cols = 1
-	building.room_rows = 2
-	building.room_size = Vector2i(8, 8)
-	building.generate()
-	var layout := RoomGraph.generate(
-		RngStreams.new(55).derive_seed("layout"), Vector2i(8, 8), 1, 2
-	)
-	assert_true(
-		building._validate_connectivity(floor_l, layout),
-		"1x2 building should be fully connected via the shared north-south door"
-	)
-	building.free()
-
-
-func test_building_connectivity_2x2() -> void:
-	var building := BuildingGen.new()
-	var floor_l := TileMapLayer.new()
-	floor_l.name = "TileMapLayer"
-	var props_l := TileMapLayer.new()
-	props_l.name = "PropsLayer"
-	building.add_child(floor_l)
-	building.add_child(props_l)
-	building.building_seed = 99
-	building.room_cols = 2
-	building.room_rows = 2
-	building.room_size = Vector2i(8, 8)
-	building.generate()
-	var layout := RoomGraph.generate(
-		RngStreams.new(99).derive_seed("layout"), Vector2i(8, 8), 2, 2
-	)
-	assert_true(
-		building._validate_connectivity(floor_l, layout),
-		"2x2 building should have all four rooms reachable from room 0"
-	)
-	building.free()
-
-
-func test_building_connectivity_multiple_seeds() -> void:
-	for seed in [0, 7, 42, 100, 1337]:
-		var building := BuildingGen.new()
-		var floor_l := TileMapLayer.new()
-		floor_l.name = "TileMapLayer"
-		var props_l := TileMapLayer.new()
-		props_l.name = "PropsLayer"
-		building.add_child(floor_l)
-		building.add_child(props_l)
-		building.building_seed = seed
-		building.room_cols = 2
-		building.room_rows = 2
-		building.room_size = Vector2i(8, 8)
-		building.generate()
-		var layout := RoomGraph.generate(
-			RngStreams.new(seed).derive_seed("layout"), Vector2i(8, 8), 2, 2
-		)
-		assert_true(
-			building._validate_connectivity(floor_l, layout),
-			"seed=%d: 2x2 building should be connected" % seed
-		)
-		building.free()
 
 
 # ── Door stitching: matching sockets on shared walls ─────────────────────────
