@@ -4,4 +4,5 @@
 .claude/worktrees/
 web
 web.zip
+.DS_Store
 
