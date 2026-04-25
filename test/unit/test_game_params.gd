@@ -36,7 +36,8 @@ func test_invalid_values_fall_back_to_safe_defaults() -> void:
 	params.load_from_query_string("?color=unknown&speed=fast")
 
 	assert_false(params.has_player_color)
-	assert_true(params.player_color.is_equal_approx(Color.WHITE))
+	assert_false(params.player_color.is_equal_approx(Color.WHITE))
+	assert_eq(params.player_color.a, 1.0)
 	assert_false(params.has_speed)
 	assert_eq(params.speed_meters_per_second, 0.0)
 	assert_eq(params.username, "")
@@ -50,6 +51,7 @@ func test_load_from_query_string_marks_parameters_as_loaded_without_a_username()
 
 	assert_true(params.has_loaded_query_parameters)
 	assert_false(params.has_username())
+	assert_false(params.player_color.is_equal_approx(Color.WHITE))
 
 
 func test_set_username_updates_the_global_username_and_query_parameters() -> void:

@@ -5,6 +5,8 @@ extends Node2D
 
 const BASE_VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const INSTRUCTIONS_FONT_SIZE := 18
+const USERNAME_BADGE_FONT_SIZE := 18
+const USERNAME_BADGE_MARGIN := Vector2(24.0, 20.0)
 const USERNAME_PROMPT_WIDTH := 420.0
 const USERNAME_PROMPT_HEIGHT := 190.0
 const USERNAME_PROMPT_BACKGROUND := Color(0.0, 0.0, 0.0, 0.55)
@@ -14,6 +16,8 @@ const USERNAME_PROMPT_ERROR_COLOR := Color(1.0, 0.72, 0.72, 1.0)
 @onready var instructions: Label = $CanvasLayer/Instructions
 @onready var player: CharacterBody2D = $WorldGen/Player
 
+var _username_badge: PanelContainer
+var _username_badge_label: Label
 var _username_overlay: Control
 var _username_input: LineEdit
 var _username_error_label: Label
@@ -21,24 +25,51 @@ var _username_error_label: Label
 
 func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
-	_layout_instructions()
+	_build_username_badge()
 	_build_username_prompt()
+	_layout_hud()
 	Callable(self, "_show_username_prompt_if_needed").call_deferred()
 
 
 func _on_viewport_size_changed() -> void:
-	_layout_instructions()
+	_layout_hud()
 
 
-func _layout_instructions() -> void:
+func _layout_hud() -> void:
 	var viewport_size := get_viewport_rect().size
 	if viewport_size == Vector2.ZERO:
 		return
+
 	var scale := maxf(viewport_size.x / BASE_VIEWPORT_SIZE.x, 0.25)
 	instructions.position = Vector2(24.0, 20.0) * scale
 	instructions.add_theme_font_size_override(
 		"font_size", maxi(int(INSTRUCTIONS_FONT_SIZE * scale), 10)
 	)
+	_username_badge_label.add_theme_font_size_override(
+		"font_size", maxi(int(USERNAME_BADGE_FONT_SIZE * scale), 10)
+	)
+
+	var badge_size := _username_badge.get_combined_minimum_size()
+	_username_badge.size = badge_size
+	_username_badge.position = viewport_size - badge_size - USERNAME_BADGE_MARGIN * scale
+
+
+func _build_username_badge() -> void:
+	_username_badge = PanelContainer.new()
+	_username_badge.name = "UsernameBadge"
+	_username_badge.visible = false
+	canvas_layer.add_child(_username_badge)
+
+	var content_margin := MarginContainer.new()
+	content_margin.add_theme_constant_override("margin_left", 14)
+	content_margin.add_theme_constant_override("margin_top", 8)
+	content_margin.add_theme_constant_override("margin_right", 14)
+	content_margin.add_theme_constant_override("margin_bottom", 8)
+	_username_badge.add_child(content_margin)
+
+	_username_badge_label = Label.new()
+	_username_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	content_margin.add_child(_username_badge_label)
 
 
 func _build_username_prompt() -> void:
@@ -109,6 +140,7 @@ func _build_username_prompt() -> void:
 func _show_username_prompt_if_needed() -> void:
 	if not GameParams.has_loaded_query_parameters:
 		await GameParams.query_parameters_loaded
+	_refresh_username_badge()
 	if GameParams.has_username():
 		return
 	_set_username_prompt_visible(true)
@@ -145,4 +177,12 @@ func _submit_username() -> void:
 		_username_input.grab_focus()
 		return
 	GameParams.set_username(submitted_username)
+	_refresh_username_badge()
 	_set_username_prompt_visible(false)
+
+
+func _refresh_username_badge() -> void:
+	_username_badge_label.text = GameParams.username
+	_username_badge_label.add_theme_color_override("font_color", GameParams.player_color)
+	_username_badge.visible = GameParams.has_username()
+	_layout_hud()

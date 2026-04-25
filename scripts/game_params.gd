@@ -111,7 +111,7 @@ func _reset() -> void:
 	referrer_url = ""
 	speed_meters_per_second = 0.0
 	has_speed = false
-	player_color = Color.WHITE
+	player_color = _generate_default_player_color()
 	has_player_color = false
 	has_loaded_query_parameters = false
 
@@ -200,3 +200,14 @@ func _hex_byte(value: String) -> int:
 
 func _hex_digit(value: String) -> int:
 	return HEX_DIGITS.find(value.to_lower())
+
+
+func _generate_default_player_color() -> Color:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return Color.from_hsv(
+		rng.randf(),
+		rng.randf_range(0.55, 0.8),
+		rng.randf_range(0.85, 1.0),
+		1.0
+	)
