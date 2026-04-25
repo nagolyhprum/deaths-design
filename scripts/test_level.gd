@@ -11,6 +11,7 @@ const MOVE_ACTION_LEFT := &"move_left"
 const MOVE_ACTION_RIGHT := &"move_right"
 const MOVE_ACTION_UP := &"move_up"
 const MOVE_ACTION_DOWN := &"move_down"
+const TOGGLE_MOBILE_NAV_KEY := KEY_P
 const MOBILE_NAV_PAD_SIZE := 192.0
 const MOBILE_NAV_BUTTON_HEIGHT := 60.0
 const MOBILE_NAV_BUTTON_GAP := 6
@@ -29,6 +30,7 @@ var _username_input: LineEdit
 var _username_error_label: Label
 var _mobile_navigation_root: Control
 var _pressed_mobile_navigation_actions: Dictionary = {}
+var _mobile_navigation_debug_override_enabled := false
 
 
 func _ready() -> void:
@@ -42,6 +44,13 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_release_mobile_navigation_actions()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == TOGGLE_MOBILE_NAV_KEY:
+		_mobile_navigation_debug_override_enabled = not _mobile_navigation_debug_override_enabled
+		_refresh_mobile_navigation_visibility()
+		get_viewport().set_input_as_handled()
 
 
 func _build_hud_controls_column() -> void:
@@ -232,7 +241,7 @@ func _refresh_mobile_navigation_visibility() -> void:
 
 
 func _is_mobile_navigation_available() -> bool:
-	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
+	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() or _mobile_navigation_debug_override_enabled
 
 
 func _on_mobile_navigation_button_down(action: StringName) -> void:
