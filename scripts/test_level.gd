@@ -1,19 +1,16 @@
 extends Node2D
 
 # Main scene coordinator. World/building rendering is handled by the WorldGen
-# child (world_gen.tscn). This script manages viewport-responsive UI layout.
+# child (world_gen.tscn). This script manages the HUD flow and username prompt.
 
-const BASE_VIEWPORT_SIZE := Vector2(1280.0, 720.0)
-const INSTRUCTIONS_FONT_SIZE := 18
-const USERNAME_BADGE_FONT_SIZE := 18
-const USERNAME_BADGE_MARGIN := Vector2(24.0, 20.0)
 const USERNAME_PROMPT_WIDTH := 420.0
 const USERNAME_PROMPT_HEIGHT := 190.0
 const USERNAME_PROMPT_BACKGROUND := Color(0.0, 0.0, 0.0, 0.55)
 const USERNAME_PROMPT_ERROR_COLOR := Color(1.0, 0.72, 0.72, 1.0)
 
 @onready var canvas_layer: CanvasLayer = $CanvasLayer
-@onready var instructions: Label = $CanvasLayer/Instructions
+@onready var hud_root: Control = $CanvasLayer/HudRoot
+@onready var hud_bottom_row: HBoxContainer = $CanvasLayer/HudRoot/HudMargin/HudVBox/BottomRow
 @onready var player: CharacterBody2D = $WorldGen/Player
 
 var _username_badge: PanelContainer
@@ -24,45 +21,17 @@ var _username_error_label: Label
 
 
 func _ready() -> void:
-	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_build_username_badge()
 	_build_username_prompt()
-	_layout_hud()
 	Callable(self, "_show_username_prompt_if_needed").call_deferred()
-
-
-func _on_viewport_size_changed() -> void:
-	_layout_hud()
-
-
-func _layout_hud() -> void:
-	var viewport_size := get_viewport_rect().size
-	if viewport_size == Vector2.ZERO:
-		return
-
-	var scale := maxf(viewport_size.x / BASE_VIEWPORT_SIZE.x, 0.25)
-	instructions.position = Vector2(24.0, 20.0) * scale
-	instructions.add_theme_font_size_override(
-		"font_size", maxi(int(INSTRUCTIONS_FONT_SIZE * scale), 10)
-	)
-	_username_badge_label.add_theme_font_size_override(
-		"font_size", maxi(int(USERNAME_BADGE_FONT_SIZE * scale), 10)
-	)
-
-	var badge_size := _username_badge.get_combined_minimum_size()
-	_username_badge.size = badge_size
-	var badge_margin := USERNAME_BADGE_MARGIN * scale
-	_username_badge.position = Vector2(
-		badge_margin.x,
-		viewport_size.y - badge_size.y - badge_margin.y
-	)
 
 
 func _build_username_badge() -> void:
 	_username_badge = PanelContainer.new()
 	_username_badge.name = "UsernameBadge"
 	_username_badge.visible = false
-	canvas_layer.add_child(_username_badge)
+	_username_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_bottom_row.add_child(_username_badge)
 
 	var content_margin := MarginContainer.new()
 	content_margin.add_theme_constant_override("margin_left", 14)
@@ -82,7 +51,7 @@ func _build_username_prompt() -> void:
 	_username_overlay.visible = false
 	_username_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_username_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	canvas_layer.add_child(_username_overlay)
+	hud_root.add_child(_username_overlay)
 
 	var blocker := ColorRect.new()
 	blocker.color = USERNAME_PROMPT_BACKGROUND
@@ -189,4 +158,3 @@ func _refresh_username_badge() -> void:
 	_username_badge_label.text = GameParams.username
 	_username_badge_label.add_theme_color_override("font_color", GameParams.player_color)
 	_username_badge.visible = GameParams.has_username()
-	_layout_hud()

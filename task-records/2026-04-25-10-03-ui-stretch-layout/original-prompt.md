@@ -1,0 +1,1 @@
+It looks like all of the scaling is manual and in code. This is a problem since whenever I add a new component I need to add resizing logic to it. Is it possible to no longer manual resize based on window size and to instead make it a project setting so that current and future nodes resize with the window size automatically

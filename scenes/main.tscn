@@ -21,12 +21,41 @@ position = Vector2(0, 462)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="Instructions" type="Label" parent="CanvasLayer"]
+[node name="HudRoot" type="Control" parent="CanvasLayer"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HudMargin" type="MarginContainer" parent="CanvasLayer/HudRoot"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
 offset_left = 24.0
 offset_top = 20.0
-offset_right = 493.0
-offset_bottom = 76.0
+offset_right = -24.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HudVBox" type="VBoxContainer" parent="CanvasLayer/HudRoot/HudMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Instructions" type="Label" parent="CanvasLayer/HudRoot/HudMargin/HudVBox"]
 theme_override_colors/font_color = Color(0.92, 0.95, 0.99, 1)
 theme_override_font_sizes/font_size = 18
 text = "Move with WASD, Arrow Keys, Left Stick, or D-Pad
 Up, down, left, and right follow the screen while the sprite keeps the nearest diagonal facing."
+
+[node name="Spacer" type="Control" parent="CanvasLayer/HudRoot/HudMargin/HudVBox"]
+custom_minimum_size = Vector2(0, 0)
+mouse_filter = 2
+size_flags_vertical = 3
+
+[node name="BottomRow" type="HBoxContainer" parent="CanvasLayer/HudRoot/HudMargin/HudVBox"]
+mouse_filter = 2
