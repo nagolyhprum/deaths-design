@@ -1,0 +1,1 @@
+It seems that the right half of each wall is being drawn last when I am outside of it. The left side of each wall is being drawn first when I am outside of it. Otherwise it looks fine when I am inside of it. Can you fix this issue?
