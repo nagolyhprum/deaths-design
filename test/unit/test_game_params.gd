@@ -1,0 +1,43 @@
+extends GutTest
+
+const GameParamsScript := preload("res://scripts/game_params.gd")
+
+
+func test_load_from_query_string_parses_all_supported_fields() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string(
+		"?username=Casey&color=green&speed=3.5&ref=https%3A%2F%2Farcade.example%2Fplay"
+	)
+
+	assert_eq(params.username, "Casey")
+	assert_true(params.has_player_color)
+	assert_true(params.player_color.is_equal_approx(Color(0.0, 1.0, 0.0, 1.0)))
+	assert_true(params.has_speed)
+	assert_eq(params.speed_meters_per_second, 3.5)
+	assert_eq(params.referrer_url, "https://arcade.example/play")
+	assert_eq(params.get_parameter("username"), "Casey")
+
+
+func test_load_from_query_string_accepts_hex_colors_and_plus_decoding() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("?username=Jane+Doe&color=ff0&ref=lobby+screen")
+
+	assert_eq(params.username, "Jane Doe")
+	assert_true(params.has_player_color)
+	assert_true(params.player_color.is_equal_approx(Color(1.0, 1.0, 0.0, 1.0)))
+	assert_eq(params.referrer_url, "lobby screen")
+
+
+func test_invalid_values_fall_back_to_safe_defaults() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("?color=unknown&speed=fast")
+
+	assert_false(params.has_player_color)
+	assert_true(params.player_color.is_equal_approx(Color.WHITE))
+	assert_false(params.has_speed)
+	assert_eq(params.speed_meters_per_second, 0.0)
+	assert_eq(params.username, "")
+	assert_eq(params.referrer_url, "")

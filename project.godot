@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+GameParams="*res://scripts/game_params.gd"
 TileMeta="*res://scripts/tile_meta.gd"
 
 [editor_plugins]

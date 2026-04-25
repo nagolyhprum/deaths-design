@@ -1,27 +1,27 @@
-[gd_scene format=3 uid="uid://cu8hs6edjw88f"]
+[gd_scene load_steps=5 format=3 uid="uid://cu8hs6edjw88f"]
 
 [ext_resource type="Script" uid="uid://je5nx68f1ipr" path="res://scripts/test_level.gd" id="1_level_script"]
 [ext_resource type="Script" uid="uid://b3q20abhg7451" path="res://scripts/world_gen.gd" id="2_jyhfs"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player_scene"]
-[ext_resource type="PackedScene" uid="uid://dqsmwkr1bp30s" path="res://scenes/building_gen.tscn" id="3_jyhfs"]
+[ext_resource type="PackedScene" path="res://scenes/building_gen.tscn" id="3_jyhfs"]
 
-[node name="Main" type="Node2D" unique_id=1454161516]
+[node name="Main" type="Node2D"]
 script = ExtResource("1_level_script")
 
-[node name="WorldGen" type="Node2D" parent="." unique_id=601110256]
+[node name="WorldGen" type="Node2D" parent="."]
 script = ExtResource("2_jyhfs")
 world_seed = 1374247286
 
-[node name="Player" parent="WorldGen" unique_id=111774833 instance=ExtResource("2_player_scene")]
+[node name="Player" parent="WorldGen" instance=ExtResource("2_player_scene")]
 z_index = 1
 y_sort_enabled = true
 position = Vector2(0, 462)
 
-[node name="BuildingGen2" parent="WorldGen" unique_id=1252004849 instance=ExtResource("3_jyhfs")]
+[node name="BuildingGen2" parent="WorldGen" instance=ExtResource("3_jyhfs")]
 
-[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=45347402]
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="Instructions" type="Label" parent="CanvasLayer" unique_id=983236887]
+[node name="Instructions" type="Label" parent="CanvasLayer"]
 offset_left = 24.0
 offset_top = 20.0
 offset_right = 493.0
