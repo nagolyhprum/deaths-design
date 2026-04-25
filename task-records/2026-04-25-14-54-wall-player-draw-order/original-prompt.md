@@ -1,0 +1,1 @@
+So the tile / player draw order still needs some work. The floor is drawn first, as expected. When the player is below a wall it always draws on top of the wall. However, when the player is above the wall the character sometimes draws before and sometimes draws after. Can you fix that?
