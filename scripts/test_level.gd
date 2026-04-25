@@ -51,7 +51,11 @@ func _layout_hud() -> void:
 
 	var badge_size := _username_badge.get_combined_minimum_size()
 	_username_badge.size = badge_size
-	_username_badge.position = viewport_size - badge_size - USERNAME_BADGE_MARGIN * scale
+	var badge_margin := USERNAME_BADGE_MARGIN * scale
+	_username_badge.position = Vector2(
+		badge_margin.x,
+		viewport_size.y - badge_size.y - badge_margin.y
+	)
 
 
 func _build_username_badge() -> void:
@@ -68,7 +72,7 @@ func _build_username_badge() -> void:
 	_username_badge.add_child(content_margin)
 
 	_username_badge_label = Label.new()
-	_username_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_username_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	content_margin.add_child(_username_badge_label)
 
 
