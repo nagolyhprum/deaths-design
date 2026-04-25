@@ -2,39 +2,54 @@
 class_name WorldGen
 extends Node2D
 
-# Top-level world orchestrator.
+# Top-level world orchestrator. generate() runs a single fixed 6-step pass
+# that lays out two scene-authored BuildingGen children (start + goal), drops
+# a handful of extra BuildingGen instances for decoration, positions the
+# player, and paints the ground and perimeter fence onto world_layer:
 #
-# Phase 1: derives a per-building seed from world_seed and forwards it to the
-# single BuildingGen child.
-#
-# Phase 2: derives seeds for multiple BuildingGen children and routes a simple
-# outdoor path on the outdoor TileMapLayer between building entrance tiles.
-#
-# Phase 5: assigns building archetypes (HOUSE, SHOP, APARTMENT, STORE) from
-# BuildingArchetype, marks the last building as the goal (STORE archetype +
-# is_goal=true), and emits goal_building_changed when the assignment is made.
-# Outdoor routing draws a tile path between all consecutive building entrances.
+#   Step 1 — place the start building at a random world-grid position.
+#   Step 2 — place the goal building, keeping it at least half the shorter
+#            world dimension away from the start.
+#   Step 3 — spawn 3–6 extra random buildings that don't overlap.
+#   Step 4 — drop the player at the start building's position.
+#   Step 5 — paint the world interior with dirt / dirt-farmland tiles.
+#   Step 6 — ring the world perimeter with fence tiles.
 #
 # Seed persistence: on non-editor runs, world_seed is loaded from user:// on
 # startup and saved whenever it changes.
 
 const SAVE_PATH := "user://worldgen.cfg"
 
-const OUTDOOR_FLOOR_SOURCE_ID := 0   # fallback; update when outdoor_tiles is authored
-const OUTDOOR_FLOOR_ATLAS     := Vector2i(0, 0)
+# Source IDs for the ground tiles painted onto world_layer in step 5.
+# Adjust to match the authored tileset.
+const DIRT_SOURCE_ID          := 9
+const DIRT_FARMLAND_SOURCE_ID := 8
+# Fence tiles painted around the world perimeter in step 6.
+const FENCE_SOURCE_ID    := [26, 27, 28, 29]
 
 @export var world_seed: int = 0
 
+# Both expected to be building_gen.tscn (or a variant).
+@export_group("Generation Params")
+@export var world_size:     Vector2i = Vector2i(8, 8)
+@export_group("Player & Goal")
+@export var player:               Player
+@export var start_building_scene: BuildingGen
+@export var goal_building_scene:  BuildingGen
+@export var world_layer: TileMapLayer
+
+
+@export_group("Debug")
 @export_tool_button("Generate")       var _generate_btn  := generate
 @export_tool_button("Randomize Seed") var _randomize_btn := randomize_world_seed
 
-# Emitted when the goal (Store) building is identified during generation.
-signal goal_building_changed(building: BuildingGen)
+# Extras spawned by _place_extras; freed on the next generate().
+var _extra_buildings: Array[BuildingGen] = []
+# Footprints (in world-tile coords) of every placed building this generation,
+# used to reject overlapping placements.
+var _occupied_rects: Array[Rect2i] = []
 
-# The building the player must reach (assigned during generate()).
-var goal_building: BuildingGen = null
-# The building where the player starts (first BuildingGen child).
-var spawn_building: BuildingGen = null
+const INVALID_POS := Vector2i(-32768, -32768)
 
 
 func _ready() -> void:
@@ -52,112 +67,183 @@ func randomize_world_seed() -> void:
 
 
 func generate() -> void:
+	if start_building_scene == null:
+		push_warning("WorldGen: start_building_scene is not assigned")
+		return
+	if goal_building_scene == null:
+		push_warning("WorldGen: goal_building_scene is not assigned")
+		return
+	if world_layer == null:
+		push_warning("WorldGen: world_layer is not assigned")
+		return
+
+	_clear_extras()
+	_occupied_rects.clear()
+
+	start_building_scene.is_goal = false
+	goal_building_scene.is_goal = true
+
 	var streams := RngStreams.new(world_seed)
-	var arch_rng := streams.stream("archetypes")
 
-	# Collect all BuildingGen nodes anywhere in the scene.
-	var buildings: Array[BuildingGen] = []
-	for node in find_children("*", "BuildingGen", true, false):
-		buildings.append(node as BuildingGen)
-
-	# Assign archetypes and seeds. First building = spawn, last = goal (STORE).
-	for i in buildings.size():
-		var building: BuildingGen = buildings[i]
-		building.building_seed = streams.derive_seed("building", i)
-
-		if buildings.size() == 1:
-			# Single-building mode: it is both spawn and destination.
-			building.archetype = BuildingArchetype.ArchetypeID.HOUSE
-			building.is_goal   = false
-		elif i == buildings.size() - 1:
-			# Last building is always the STORE goal.
-			building.archetype = BuildingArchetype.ArchetypeID.STORE
-			building.is_goal   = true
-		else:
-			building.archetype = _pick_archetype(arch_rng, i)
-			building.is_goal   = false
-
-		building.generate()
-
-	# Track spawn and goal references.
-	spawn_building = buildings[0] if not buildings.is_empty() else null
-	goal_building  = null
-	for b in buildings:
-		if b.is_goal:
-			goal_building = b
-			break
-	if goal_building != null:
-		goal_building_changed.emit(goal_building)
-
-	_generate_outdoor(streams, buildings)
+	# Step 1: place the start.
+	_place_building(start_building_scene, streams.stream("start"), 6, 10)
+	# Step 2: place the goal, keeping it at least half the shorter world
+	#         dimension away from the start and not overlapping its footprint.
+	@warning_ignore("integer_division")
+	var min_endpoint_dist := mini(world_size.x, world_size.y) / 2
+	_place_building(
+		goal_building_scene, streams.stream("goal"), 6, 10,
+		_grid_pos(start_building_scene), min_endpoint_dist
+	)
+	# Step 3: fill the world with a handful of extra random buildings.
+	_place_extras(streams.stream("extras"))
+	# Step 4: drop the player at the centre of the start building.
+	if player != null:
+		player.global_position = start_building_scene.global_position
+	# Step 5: paint the ground with dirt / dirt-farmland tiles.
+	_fill_world(streams.stream("world"))
+	# Step 6: ring the world with fence tiles.
+	_fill_perimeter_fence(streams.stream("fence"))
 
 
-# ── Archetype selection ───────────────────────────────────────────────────────
+func _fill_world(rng: RandomNumberGenerator) -> void:
+	if world_layer == null:
+		push_warning("WorldGen: world_layer is not assigned")
+		return
+	world_layer.clear()
 
-# Pick a non-goal archetype for building at index i.
-# Cycles through HOUSE → SHOP → APARTMENT to give variety across a street.
-static func _pick_archetype(rng: RandomNumberGenerator, index: int) -> int:
-	var pool := [
-		BuildingArchetype.ArchetypeID.HOUSE,
-		BuildingArchetype.ArchetypeID.SHOP,
-		BuildingArchetype.ArchetypeID.APARTMENT,
-	]
-	return pool[index % pool.size()]
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	for y in range(-half.y+1, world_size.y - half.y - 1):
+		for x in range(-half.x+1, world_size.x - half.x - 1):
+			var source := DIRT_SOURCE_ID if rng.randi_range(0, 1) == 0 else DIRT_FARMLAND_SOURCE_ID
+			world_layer.set_cell(Vector2i(x, y), source, Vector2i(0, 0))
 
 
-# ── Outdoor generation ────────────────────────────────────────────────────────
+func _fill_perimeter_fence(rng: RandomNumberGenerator) -> void:
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	var min_x := -half.x
+	var min_y := -half.y
+	var max_x := world_size.x - half.x - 1  # inclusive
+	var max_y := world_size.y - half.y - 1  # inclusive
+	const FENCE_NORTH_ATLAS  := Vector2i(1, 0)
+	const FENCE_EAST_ATLAS   := Vector2i(0, 0)
+	const FENCE_SOUTH_ATLAS  := Vector2i(2, 0)
+	const FENCE_WEST_ATLAS   := Vector2i(3, 0)
 
-func _generate_outdoor(streams: RngStreams, buildings: Array[BuildingGen]) -> void:
-	var outdoor_layer := _get_outdoor_layer()
-	if outdoor_layer == null:
+	# Top and bottom rows (include corners, which end up horizontal).
+	for x in range(min_x +1, max_x):
+		world_layer.set_cell(Vector2i(x, min_y), _random_fence_id(rng), FENCE_NORTH_ATLAS)
+		world_layer.set_cell(Vector2i(x, max_y), _random_fence_id(rng), FENCE_SOUTH_ATLAS)
+	# Left and right columns (skip corners, already set above).
+	for y in range(min_y + 1, max_y):
+		world_layer.set_cell(Vector2i(min_x, y), _random_fence_id(rng), FENCE_WEST_ATLAS)
+		world_layer.set_cell(Vector2i(max_x, y), _random_fence_id(rng), FENCE_EAST_ATLAS)
+
+
+func _random_fence_id(rng: RandomNumberGenerator) -> int:
+	return FENCE_SOURCE_ID[rng.randi_range(0, FENCE_SOURCE_ID.size() - 1)]
+
+
+# Picks a room size, finds a non-overlapping world position, applies everything
+# to the building, and calls generate(). Returns true on success.
+func _place_building(
+	b:          BuildingGen,
+	rng:        RandomNumberGenerator,
+	min_dim:    int,
+	max_dim:    int,
+	avoid:      Vector2i = INVALID_POS,
+	avoid_dist: int      = 0
+) -> bool:
+	var size := Vector2i(rng.randi_range(min_dim, max_dim), rng.randi_range(min_dim, max_dim))
+	var pos := _find_free_position(rng, size, avoid, avoid_dist)
+	if pos == INVALID_POS:
+		push_warning("WorldGen: no free position for building with size %s" % size)
+		return false
+
+	b.room_size = size
+	b.building_seed = rng.randi()
+	b.global_position = world_layer.to_global(world_layer.map_to_local(pos))
+	_occupied_rects.append(_footprint(pos, size))
+	b.generate()
+	return true
+
+
+func _find_free_position(
+	rng:        RandomNumberGenerator,
+	size:       Vector2i,
+	avoid:      Vector2i,
+	avoid_dist: int,
+	max_attempts: int = 64
+) -> Vector2i:
+	@warning_ignore("integer_division")
+	var half := world_size / 2
+	var world_rect := Rect2i(-half, world_size)
+	for attempt in max_attempts:
+		var pos := _random_world_pos(rng, half)
+		if avoid_dist > 0 and pos.distance_to(avoid) < avoid_dist:
+			continue
+		var fp := _footprint(pos, size)
+		if not world_rect.encloses(fp):
+			continue
+		if _overlaps_any(fp):
+			continue
+		return pos
+	return INVALID_POS
+
+
+# Footprint of a building centered at `pos` with the given interior room size.
+# Includes the 1-tile wall border BuildingGen draws around the room.
+func _footprint(pos: Vector2i, size: Vector2i) -> Rect2i:
+	@warning_ignore("integer_division")
+	return Rect2i(pos - size / 2 - Vector2i.ONE, size + Vector2i(2, 2))
+
+
+func _overlaps_any(rect: Rect2i) -> bool:
+	for r in _occupied_rects:
+		if rect.intersects(r):
+			return true
+	return false
+
+
+func _grid_pos(b: BuildingGen) -> Vector2i:
+	return world_layer.local_to_map(world_layer.to_local(b.global_position))
+
+
+func _place_extras(rng: RandomNumberGenerator) -> void:
+	var scene_path: String = start_building_scene.scene_file_path
+	if scene_path.is_empty():
+		push_warning("WorldGen: start_building_scene has no scene_file_path; cannot spawn extras")
+		return
+	var scene := load(scene_path) as PackedScene
+	if scene == null:
 		return
 
-	outdoor_layer.clear()
-
-	if buildings.size() < 2:
-		return
-
-	# Collect entrance positions from each building (south-centre of ground floor).
-	var entrances: Array[Vector2i] = []
-	for b in buildings:
-		entrances.append(_building_entrance(b))
-
-	# Route a straight (axis-aligned) path between every consecutive entrance pair.
-	for i in range(entrances.size() - 1):
-		_route_path(outdoor_layer, entrances[i], entrances[i + 1])
-
-	# Mark the goal building's entrance tile distinctively.
-	# Uses a different atlas coord (1,0) so it can be styled separately in the TileSet.
-	if goal_building != null:
-		var goal_entrance := _building_entrance(goal_building)
-		outdoor_layer.set_cell(goal_entrance, OUTDOOR_FLOOR_SOURCE_ID, Vector2i(1, 0))
+	var count := rng.randi_range(3, 6)
+	for i in count:
+		var extra: BuildingGen = scene.instantiate() as BuildingGen
+		extra.is_goal = false
+		add_child(extra)
+		_extra_buildings.append(extra)
+		# Extras can be as small as 2x2; floor set by user request.
+		if not _place_building(extra, rng, 2, 8):
+			extra.queue_free()
+			_extra_buildings.pop_back()
 
 
-func _building_entrance(b: BuildingGen) -> Vector2i:
-	# Use the south-centre tile of the building as its street entrance.
-	var total_h := b.room_size.y * b.room_rows
-	var total_w := b.room_size.x * b.room_cols
-	var bpos := Vector2i(int(b.global_position.x), int(b.global_position.y))
-	return bpos + Vector2i(total_w / 2, total_h - 1)
+func _clear_extras() -> void:
+	for b in _extra_buildings:
+		if is_instance_valid(b):
+			b.queue_free()
+	_extra_buildings.clear()
 
 
-func _route_path(layer: TileMapLayer, from_tile: Vector2i, to_tile: Vector2i) -> void:
-	# Axis-aligned L-shaped path: go horizontal first, then vertical.
-	var cur := from_tile
-	while cur.x != to_tile.x:
-		layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-		cur.x += 1 if to_tile.x > cur.x else -1
-	while cur.y != to_tile.y:
-		layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-		cur.y += 1 if to_tile.y > cur.y else -1
-	layer.set_cell(cur, OUTDOOR_FLOOR_SOURCE_ID, OUTDOOR_FLOOR_ATLAS)
-
-
-func _get_outdoor_layer() -> TileMapLayer:
-	for child in get_children():
-		if child is TileMapLayer:
-			return child
-	return null
+func _random_world_pos(rng: RandomNumberGenerator, half: Vector2i) -> Vector2i:
+	return Vector2i(
+		rng.randi_range(-half.x, half.x - 1),
+		rng.randi_range(-half.y, half.y - 1),
+	)
 
 
 # ── Seed persistence ──────────────────────────────────────────────────────────

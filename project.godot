@@ -24,16 +24,16 @@ config/icon="res://icon.svg"
 GameParams="*res://scripts/game_params.gd"
 TileMeta="*res://scripts/tile_meta.gd"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
-
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
 [input]
 
