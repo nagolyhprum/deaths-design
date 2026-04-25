@@ -1,0 +1,1 @@
+There are still issues with the draw order. The floor is right. The plsyer is right when being drawn inside a building but not outside a building. When walking on any side of the outside of a building, every other tile is drawn in the wrong order and every other tile is drawn in the right order. Can you fix just the draw order for when the player is outside of the building
