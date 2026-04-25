@@ -41,3 +41,36 @@ func test_invalid_values_fall_back_to_safe_defaults() -> void:
 	assert_eq(params.speed_meters_per_second, 0.0)
 	assert_eq(params.username, "")
 	assert_eq(params.referrer_url, "")
+
+
+func test_load_from_query_string_marks_parameters_as_loaded_without_a_username() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("")
+
+	assert_true(params.has_loaded_query_parameters)
+	assert_false(params.has_username())
+
+
+func test_set_username_updates_the_global_username_and_query_parameters() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("?ref=lobby")
+	params.set_username("  Logan  ")
+
+	assert_eq(params.username, "Logan")
+	assert_true(params.has_username())
+	assert_eq(params.get_parameter("username"), "Logan")
+	assert_eq(params.get_parameter("ref"), "lobby")
+
+
+func test_set_username_clears_the_username_parameter_when_blank() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("?username=Casey")
+	params.set_username("   ")
+
+	assert_eq(params.username, "")
+	assert_false(params.has_username())
+	assert_false(params.has_parameter("username"))
+	assert_eq(params.get_parameter("username", "missing"), "missing")

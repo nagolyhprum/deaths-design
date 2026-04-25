@@ -7,6 +7,8 @@ const NAMED_PLAYER_COLORS := {
 }
 const HEX_DIGITS := "0123456789abcdef"
 
+signal query_parameters_loaded
+
 var raw_query_string := ""
 var query_parameters := {}
 var username := ""
@@ -15,6 +17,7 @@ var speed_meters_per_second := 0.0
 var has_speed := false
 var player_color := Color.WHITE
 var has_player_color := false
+var has_loaded_query_parameters := false
 
 
 func _ready() -> void:
@@ -28,30 +31,28 @@ func refresh_from_startup() -> void:
 func load_from_query_string(query_string: String) -> void:
 	_reset()
 	raw_query_string = query_string.strip_edges()
-	if raw_query_string.is_empty():
-		return
+	if not raw_query_string.is_empty():
+		var trimmed_query := raw_query_string
+		if trimmed_query.begins_with("?"):
+			trimmed_query = trimmed_query.substr(1)
 
-	var trimmed_query := raw_query_string
-	if trimmed_query.begins_with("?"):
-		trimmed_query = trimmed_query.substr(1)
-	if trimmed_query.is_empty():
-		return
+		for pair in trimmed_query.split("&", false):
+			if pair.is_empty():
+				continue
 
-	for pair in trimmed_query.split("&", false):
-		if pair.is_empty():
-			continue
+			var key_value := pair.split("=", true, 1)
+			var key := _decode_query_component(key_value[0]).strip_edges()
+			if key.is_empty():
+				continue
 
-		var key_value := pair.split("=", true, 1)
-		var key := _decode_query_component(key_value[0]).strip_edges()
-		if key.is_empty():
-			continue
-
-		var value := ""
-		if key_value.size() > 1:
-			value = _decode_query_component(key_value[1]).strip_edges()
-		query_parameters[key] = value
+			var value := ""
+			if key_value.size() > 1:
+				value = _decode_query_component(key_value[1]).strip_edges()
+			query_parameters[key] = value
 
 	_apply_normalized_values()
+	has_loaded_query_parameters = true
+	query_parameters_loaded.emit()
 
 
 func has_parameter(name: String) -> bool:
@@ -60,6 +61,18 @@ func has_parameter(name: String) -> bool:
 
 func get_parameter(name: String, default_value: Variant = "") -> Variant:
 	return query_parameters.get(name, default_value)
+
+
+func has_username() -> bool:
+	return not username.is_empty()
+
+
+func set_username(value: String) -> void:
+	username = value.strip_edges()
+	if username.is_empty():
+		query_parameters.erase("username")
+		return
+	query_parameters["username"] = username
 
 
 func to_dictionary() -> Dictionary:
@@ -100,6 +113,7 @@ func _reset() -> void:
 	has_speed = false
 	player_color = Color.WHITE
 	has_player_color = false
+	has_loaded_query_parameters = false
 
 
 func _get_startup_query_string() -> String:

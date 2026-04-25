@@ -1,0 +1,1 @@
+While someone is playing the game, I want you to prompt them for their name if it is missing. Make sure you wait for the query params to see if they already have a username. You should use the global username when getting or setting the username.
