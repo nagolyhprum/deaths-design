@@ -1,5 +1,6 @@
 extends Node
 
+const PORTAL_2026_URL := "https://vibej.am/portal/2026"
 const NAMED_PLAYER_COLORS := {
 	"red": Color(1.0, 0.0, 0.0, 1.0),
 	"green": Color(0.0, 1.0, 0.0, 1.0),
@@ -75,6 +76,26 @@ func set_username(value: String) -> void:
 	query_parameters["username"] = username
 
 
+func build_portal_2026_url() -> String:
+	var query_parameters_for_portal := [
+		"username=%s" % _encode_query_component(username.strip_edges()),
+		"color=%s" % _encode_query_component(_serialize_player_color(player_color)),
+		"speed=%s" % _encode_query_component(_serialize_speed(speed_meters_per_second)),
+	]
+	return "%s?%s" % [PORTAL_2026_URL, "&".join(query_parameters_for_portal)]
+
+
+func navigate_to_portal_2026() -> void:
+	var url := build_portal_2026_url()
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.location.href = %s;" % JSON.stringify(url), true)
+		return
+
+	var error := OS.shell_open(url)
+	if error != OK:
+		push_error("Failed to open portal 2026 URL: %s" % error)
+
+
 func to_dictionary() -> Dictionary:
 	return {
 		"raw_query_string": raw_query_string,
@@ -141,6 +162,10 @@ func _get_command_line_query_string() -> String:
 
 func _decode_query_component(component: String) -> String:
 	return component.replace("+", " ").uri_decode()
+
+
+func _encode_query_component(component: String) -> String:
+	return component.uri_encode()
 
 
 func _parse_player_color(value: String) -> Dictionary:
@@ -211,3 +236,23 @@ func _generate_default_player_color() -> Color:
 		rng.randf_range(0.85, 1.0),
 		1.0
 	)
+
+
+func _serialize_player_color(value: Color) -> String:
+	for color_name in NAMED_PLAYER_COLORS:
+		if value.is_equal_approx(NAMED_PLAYER_COLORS[color_name]):
+			return color_name
+
+	return value.to_html(not is_equal_approx(value.a, 1.0)).to_lower()
+
+
+func _serialize_speed(value: float) -> String:
+	if is_equal_approx(value, round(value)):
+		return str(int(round(value)))
+
+	var serialized := str(value)
+	while serialized.ends_with("0"):
+		serialized = serialized.trim_suffix("0")
+	if serialized.ends_with("."):
+		serialized = serialized.trim_suffix(".")
+	return serialized

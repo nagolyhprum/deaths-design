@@ -76,3 +76,27 @@ func test_set_username_clears_the_username_parameter_when_blank() -> void:
 	assert_false(params.has_username())
 	assert_false(params.has_parameter("username"))
 	assert_eq(params.get_parameter("username", "missing"), "missing")
+
+
+func test_build_portal_2026_url_uses_current_global_values() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.username = "levelsio"
+	params.speed_meters_per_second = 5.0
+	params.player_color = Color(1.0, 0.0, 0.0, 1.0)
+
+	assert_eq(
+		params.build_portal_2026_url(),
+		"https://vibej.am/portal/2026?username=levelsio&color=red&speed=5"
+	)
+
+
+func test_build_portal_2026_url_serializes_non_named_colors_as_hex() -> void:
+	var params = autofree(GameParamsScript.new())
+
+	params.load_from_query_string("?username=Jane+Doe&color=123456&speed=3.5")
+
+	assert_eq(
+		params.build_portal_2026_url(),
+		"https://vibej.am/portal/2026?username=Jane%20Doe&color=123456&speed=3.5"
+	)
