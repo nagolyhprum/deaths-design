@@ -1,0 +1,1 @@
+I need to add on screen navigation buttons when mobile is detected. I want you to move the username higher and below it to have an up left right and down buttons. It should be a long up button, below is a left and right with the same height as up but each half as long, below that is a long down button. The control should be a square in shape.
